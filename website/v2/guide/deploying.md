@@ -14,7 +14,7 @@ gtkx deploy
 [gtkx] Deploying Tasks 1.0.0-1 as gtkx-tutorial (x64) to flatpak
 [gtkx] Validated the desktop entry and the metainfo
 [gtkx] Building ~/tasks/src/index.tsx
-[gtkx] Bundled Node.js v26.7.0 (109.4 MiB, runtime glibc >= 2.28)
+[gtkx] Bundled Node.js v26.8.2 (111.8 MiB, runtime glibc >= 2.28)
 [gtkx] Staged 12 files into build/x64/stage
 [gtkx] Wrote build/x64/targets/flatpak/com.gtkx.tutorial.yml
 [gtkx] flatpak: running flatpak-builder, this can take several minutes
@@ -172,11 +172,11 @@ binaries, and ELF files supplied through `deploy.extraFiles`.
 
 ## Why Node.js is bundled
 
-GTKX needs Node.js 26.7.0 or newer, so `gtkx deploy` bundles the official `nodejs.org` build instead of depending on a distribution package. The default download is pinned to exactly 26.7.0, independently of the Node.js version running the deploy. Set `deploy.node.version` to pin another supported official download explicitly. GTKX verifies the published SHA-256 and caches the archive under `~/.cache/gtkx/node/`, so only the first deploy of that version and architecture needs network access.
+GTKX needs Node.js 26.7.0 or newer, so `gtkx deploy` bundles the official `nodejs.org` build instead of depending on a distribution package. The default download is pinned to exactly 26.8.2, independently of the Node.js version running the deploy. Set `deploy.node.version` to pin another supported official download explicitly. GTKX verifies the published SHA-256 and caches the archive under `~/.cache/gtkx/node/`, so only the first deploy of that version and architecture needs network access.
 
 `deploy.node.source` changes where it comes from:
 
-- `"download"` (default) fetches and verifies the official build for `deploy.node.version`, or 26.7.0 when it is omitted.
+- `"download"` (default) fetches and verifies the official build for `deploy.node.version`, or 26.8.2 when it is omitted.
 - `"host"` copies the Node.js running the build and records `process.versions.node`. Fully offline, but rejected with an explanation when that binary links against something the target machine will not have, which is the case for the Node.js packages Fedora and Debian ship.
 - `"path"` uses `deploy.node.path` and runs that binary with `--version` before packaging it.
 
@@ -292,7 +292,7 @@ If the build stops at `Failure spawning rofiles-fuse`, it is running somewhere F
 
 The MIME package your `fileAssociations` generate rides along inline, like the desktop entry and the metainfo. Your license file and every `deploy.extraFiles` entry install straight out of the checkout, so each has to live inside the repository and be committed; one that points outside fails the deploy.
 
-The lockfile in your project root picks which package manager the sandbox installs with, and npm, pnpm, and yarn all work. pnpm takes one extra source, because the Node SDK extension ships no pnpm and the sandbox has no network to fetch one, so the manifest vendors the pnpm tarball itself. The version comes from `packageManager` in your `package.json`: write it with `corepack use pnpm@<version>`, which records the `sha512` digest every Flathub source has to carry. Pin pnpm 10, or 11.3.0 and newer, where `--trust-lockfile` skips the registry check the sandbox cannot complete.
+The lockfile in your project root picks which package manager the sandbox installs with, and npm, pnpm, and yarn all work. pnpm takes one extra source, because the Node SDK extension ships no pnpm and the sandbox has no network to fetch one, so the manifest vendors the pnpm tarball itself. The version comes from `packageManager` in your `package.json`: write it with `corepack use pnpm@<version>`, which records the `sha512` digest every Flathub source has to carry. Supported pins are pnpm 10.x, pnpm 11.x starting at 11.3.0, and pnpm 12.x. For pnpm 11 and 12, GTKX adds `--trust-lockfile` so the offline install skips the registry check.
 
 [Shipping It on Flathub](/v2/tutorial/flatpak) walks through the submission.
 
