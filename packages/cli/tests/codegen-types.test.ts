@@ -7,8 +7,8 @@ import { type CliProject, createCliProject, removeCliProject, runCli, STORE_LIBR
 
 const WORKSPACE = fileURLToPath(new URL("../../..", import.meta.url));
 const TYPESCRIPT_CLI = join(WORKSPACE, "node_modules/typescript/bin/tsc");
-const PACKAGES = ["cairo", "components", "config", "css", "native", "react", "runtime", "utils"];
-const ACCEPTED = `import type { ComboRowProps, DropDownProps } from "@gtkx/components";
+const PACKAGES = ["cairo", "components", "config", "css", "forms", "native", "react", "runtime", "utils"];
+const ACCEPTED = `import type { ComboRowProps, DropDownProps, ListViewProps } from "@gtkx/components";
 import { Dialog, SpinRow, SplitButton } from "@gtkx/gi/adw";
 import { Action, DBusInterfaceSkeleton, type DBusInterfaceInfo, SimpleAction } from "@gtkx/gi/gio";
 import { ArrowType, Box, Button, CellAreaBox, CellRendererText, Orientation } from "@gtkx/gi/gtk";
@@ -47,12 +47,78 @@ export const comboRowProps: ComboRowProps<string> = {
     selectedId: "first",
     onSelectionChanged: (id) => id,
 };
+export const emptyDropDown: DropDownProps = {};
+export const emptyComboRow: ComboRowProps = {};
+export const structuredDropDown: DropDownProps<{ label: string }> = {
+    items: [{ id: "first", value: { label: "First" } }],
+    renderItem: ({ item }) => item.label,
+};
+export const primitiveComboRow: ComboRowProps<string | number | boolean | bigint | symbol | null | undefined> = {
+    items: ["First", 0, false, 42n, Symbol("choice"), null, undefined].map((value, index) => ({
+        id: String(index), value,
+    })),
+};
+export const collectionSources: ListViewProps<string, string>[] = [
+    { renderItem: () => null },
+    { items: [{ id: "first", value: "First" }], renderHeader: null, renderItem: ({ item }) => item },
+    {
+        sections: [{ id: "group", value: "Group", data: [{ id: "first", value: "First" }] }],
+        renderHeader: ({ section }) => section,
+        renderItem: ({ item }) => item,
+    },
+];
 
 export function interfaceName(value: unknown): string {
     return value instanceof Action ? value.getName() : "";
 }
 `;
+const ACCEPTED_JSX = `import { ComboRow, DropDown, type DropDownProps } from "@gtkx/components";
+export const choices = [
+    <DropDown />,
+    <ComboRow items={[{ id: "one", value: 1 }]} />,
+    <DropDown items={[{ id: "one", value: { label: "One" } }]}
+        renderItem={({ item }) => item.label} />,
+];
+export const forwarded = <T,>(props: DropDownProps<T>) => <DropDown {...props} />;
+`;
+const FORM_ACCEPTED = `import { ComboRow, EntryRow, SpinRow, SwitchRow, useForm } from "@gtkx/forms";
+export function Form() {
+    const { control } = useForm({ defaultValues: { name: "", count: 0, enabled: false, choice: "one" } });
+    return <>
+        <EntryRow {...{ control }} name="name" />
+        <SpinRow {...{ control }} name="count" />
+        <SwitchRow {...{ control }} name="enabled" />
+        <ComboRow {...{ control }} name="choice"
+            items={[{ id: "one", value: { label: "One" } }]}
+            renderItem={({ item }) => item.label} />
+    </>;
+}
+`;
 const REJECTED = {
+    "nullable-form-combo-row.tsx": `import { ComboRow, useForm } from "@gtkx/forms";
+export function Form() {
+    const { control } = useForm<{ choice: string | null }>({ defaultValues: { choice: null } });
+    return <ComboRow {...{ control }} name="choice" items={[{ id: "one", value: "One" }]} />;
+}
+`,
+    "optional-form-combo-row.tsx": `import { ComboRow, useForm } from "@gtkx/forms";
+export function Form() {
+    const { control } = useForm<{ choice?: string }>({ defaultValues: {} });
+    return <ComboRow {...{ control }} name="choice" items={[{ id: "one", value: "One" }]} />;
+}
+`,
+    "wrong-form-field.tsx": `import { EntryRow, useForm } from "@gtkx/forms";
+export function Form() {
+    const { control } = useForm({ defaultValues: { name: "" } });
+    return <EntryRow {...{ control }} name="missing" />;
+}
+`,
+    "wrong-form-value.tsx": `import { SpinRow, useForm } from "@gtkx/forms";
+export function Form() {
+    const { control } = useForm({ defaultValues: { count: "zero" } });
+    return <SpinRow {...{ control }} name="count" />;
+}
+`,
     "interface-argument.ts": `import { Carousel } from "@gtkx/gi/adw";
 new Carousel().setOrientation("vertical");
 `,
@@ -83,6 +149,37 @@ export const props: DropDownProps = { selectedId: null };
 `,
     "nullable-combo-row-selection.ts": `import type { ComboRowProps } from "@gtkx/components";
 export const props: ComboRowProps = { selectedId: null };
+`,
+    "mixed-collection-sources.ts": `import type { DropDownProps } from "@gtkx/components";
+export const props: DropDownProps = { items: [], sections: [] };
+`,
+    "header-with-item-source.ts": `import type { ComboRowProps } from "@gtkx/components";
+export const props: ComboRowProps = { items: [], renderHeader: () => null };
+`,
+    "header-without-section-source.ts": `import type { ListViewProps } from "@gtkx/components";
+export const props: ListViewProps = { renderItem: () => null, renderHeader: () => null };
+`,
+    "structured-dropdown-without-renderer.ts": `import type { DropDownProps } from "@gtkx/components";
+export const props: DropDownProps<{ label: string }> = { items: [{ id: "first", value: { label: "First" } }] };
+`,
+    "structured-combo-row-popup-only.ts": `import type { ComboRowProps } from "@gtkx/components";
+export const props: ComboRowProps<{ label: string }> = {
+    items: [{ id: "first", value: { label: "First" } }], renderListItem: ({ item }) => item.label,
+};
+`,
+    "mixed-dropdown-without-renderer.ts": `import type { DropDownProps } from "@gtkx/components";
+export const props: DropDownProps<string | { label: string }> = { items: [{ id: "first", value: { label: "First" } }] };
+`,
+    "inferred-structured-dropdown.tsx": `import { DropDown } from "@gtkx/components";
+export const choice = <DropDown items={[{ id: "one", value: { label: "One" } }]} />;
+`,
+    "inferred-structured-combo-row.tsx": `import { ComboRow } from "@gtkx/components";
+export const choice = <ComboRow sections={[{
+    id: "group", value: "Group", data: [{ id: "one", value: { label: "One" } }],
+}]} renderListItem={({ item }) => item.label} />;
+`,
+    "discarded-column-children.ts": `import type { ColumnViewProps } from "@gtkx/components";
+export const props: ColumnViewProps = { columns: [], children: "unrendered" };
 `,
 };
 
@@ -151,6 +248,14 @@ const copyTypeDependencies = (project: CliProject): void => {
 
     const reconcilerTypes = realpathSync(join(WORKSPACE, "packages/react/node_modules/@types/react-reconciler"));
     cpSync(reconcilerTypes, join(project.nodeModules, "@types/react-reconciler"), { recursive: true });
+    const typeFest = realpathSync(join(WORKSPACE, "packages/utils/node_modules/type-fest"));
+    cpSync(typeFest, join(project.nodeModules, "type-fest"), { recursive: true });
+    const toolkit = realpathSync(join(WORKSPACE, "packages/utils/node_modules/es-toolkit"));
+    cpSync(toolkit, join(project.nodeModules, "es-toolkit"), { recursive: true });
+    const formPackage = realpathSync(join(WORKSPACE, "packages/forms/node_modules/react-hook-form"));
+    cpSync(formPackage, join(project.nodeModules, "react-hook-form"), { recursive: true });
+    const taggedTag = realpathSync(join(dirname(typeFest), "tagged-tag"));
+    cpSync(taggedTag, join(project.nodeModules, "tagged-tag"), { recursive: true });
 
     for (const name of ["node", "react"]) {
         const source = realpathSync(join(WORKSPACE, "node_modules", "@types", name));
@@ -185,7 +290,7 @@ const typecheck = (project: CliProject, file: string): void => {
         TYPESCRIPT_CLI,
         "--noEmit", "--module", "ESNext", "--moduleResolution", "Bundler", "--target", "ESNext",
         "--strict", "--exactOptionalPropertyTypes", "--noUncheckedIndexedAccess",
-        "--skipLibCheck", "false", "--types", "node", file,
+        "--skipLibCheck", "false", "--types", "node", "--jsx", "react-jsx", file,
     ], { cwd: project.root, encoding: "utf8" });
 
     if (result.status !== 0) {
@@ -203,7 +308,14 @@ describe("generated declarations in an installed consumer", () => {
         state.project = createCliProject({
             prefix: "gtkx-installed-types-",
             config: `export default {applicationId: "org.gtkx.strict", libraries: ${JSON.stringify(STORE_LIBRARIES)}};`,
-            files: { "accepted.ts": ACCEPTED, "signal-accepted.ts": SIGNAL_ACCEPTED, ...REJECTED, ...SIGNAL_REJECTED },
+            files: {
+                "accepted.ts": ACCEPTED,
+                "accepted.tsx": ACCEPTED_JSX,
+                "forms.tsx": FORM_ACCEPTED,
+                "signal-accepted.ts": SIGNAL_ACCEPTED,
+                ...REJECTED,
+                ...SIGNAL_REJECTED,
+            },
         });
         state.status = runCli(state.project, ["codegen"]).status;
 
@@ -219,7 +331,7 @@ describe("generated declarations in an installed consumer", () => {
         removeCliProject(state.project);
     });
 
-    it.each(["namespaces.ts", "accepted.ts", "signal-accepted.ts"])(
+    it.each(["namespaces.ts", "accepted.ts", "accepted.tsx", "forms.tsx", "signal-accepted.ts"])(
         "checks public API declarations in %s",
         (file) => {
             expect(state.status).toBe(0);

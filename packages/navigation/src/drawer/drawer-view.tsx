@@ -21,7 +21,6 @@ import type {
 import { HeaderBar } from "../shared/header-bar.js";
 import { getFocusedRoute, requireDescriptor } from "../shared/routes.js";
 import { ScenePage } from "../shared/scene-page.js";
-import { useLoadedRoutes } from "../shared/use-loaded-routes.js";
 import { usePopToTopOnBlur } from "../shared/use-pop-to-top-on-blur.js";
 import { DrawerCollapsedContext } from "./drawer-collapsed-context.js";
 import { DrawerItemList } from "./drawer-item-list.js";
@@ -47,15 +46,12 @@ const PACK_TYPES = { start: Gtk.PackType.START, end: Gtk.PackType.END } as const
 
 const useSidebarSync = (navigation: DrawerNavigationHelpers): ((isShown: boolean | null) => void) =>
     useCallback((isShown: boolean | null) => {
-        const current = navigation.getState();
-        const isOpen = getDrawerStatus(current) === "open";
-
-        if (isShown === null || isShown === isOpen) {
+        if (isShown === null) {
             return;
         }
 
         const action = isShown ? DrawerActions.openDrawer() : DrawerActions.closeDrawer();
-        navigation.dispatch({ ...action, target: current.key });
+        navigation.dispatch({ ...action, target: navigation.getState().key });
     }, [navigation]);
 
 const useCloseOnNavigate = (
@@ -70,7 +66,7 @@ const useCloseOnNavigate = (
         const hasChanged = previousKeyRef.current !== focusedKey;
         previousKeyRef.current = focusedKey;
 
-        if (hasChanged && isCollapsed && getDrawerStatus(navigation.getState()) === "open") {
+        if (hasChanged && isCollapsed) {
             navigation.dispatch({ ...DrawerActions.closeDrawer(), target: navigation.getState().key });
         }
     }, [focusedKey, isCollapsed, navigation]);
@@ -132,7 +128,6 @@ const DrawerView = ({ state, navigation, descriptors, drawerContent, ...config }
     const { collapsed = false, sidebarPosition = "start", pinSidebar, minSidebarWidth, maxSidebarWidth } = config;
     const focused = getFocusedRoute(state);
     const descriptor = requireDescriptor(descriptors, focused.key);
-    const loaded = useLoadedRoutes(focused.key, state.preloadedRouteKeys);
     const onShowSidebarChanged = useSidebarSync(navigation);
     const contentProps = { state, navigation, descriptors };
     const sidebar = drawerContent === undefined ? <DrawerContent {...contentProps} /> : drawerContent(contentProps);
@@ -158,7 +153,7 @@ const DrawerView = ({ state, navigation, descriptors, drawerContent, ...config }
                             <DrawerPage
                                 key={route.key}
                                 descriptor={requireDescriptor(descriptors, route.key)}
-                                isLoaded={loaded.has(route.key)}
+                                isLoaded={route.key === focused.key || state.preloadedRouteKeys.includes(route.key)}
                             />
                         ))}
                     </AdwViewStack>
