@@ -1,7 +1,9 @@
 import { sanitizeIdentifier, sanitizeTypeIdentifier, sortStrings, sortStringsBy } from "@gtkx/utils";
+import { resolve } from "node:path";
 import type { GirClass } from "../gir/class.js";
 import type { GirFunction } from "../gir/function.js";
 import type { GirRecord } from "../gir/record.js";
+import { computeGiFingerprint, type GiFingerprint, type GiInputs, isGiFingerprintFresh } from "../fingerprint.js";
 import { isEmittableEntity } from "../gir/emittable.js";
 import { externalPackageFor } from "../gir/external-namespaces.js";
 import { Library } from "../gir/library.js";
@@ -13,11 +15,15 @@ import { type ElementProps, setElementProps } from "../store/jsx/element-prop-im
 import { collectIntrinsicElementClasses, type GlibNamedClass } from "../store/jsx/intrinsic-elements.js";
 import { type OmittedProps, setOmittedProps } from "../store/jsx/omitted-props.js";
 import { type ElementPageContext, renderElementPage } from "./element-page.js";
+import { createPropsCatalog, type PropsCatalog } from "./handwritten-props.js";
+import { hasFreshPropsDependencies } from "./props-dependencies.js";
+import { freshDeclarationDir } from "./props-program.js";
 import { docsSignatureContext, firstSentence, namespaceOrder } from "./render.js";
 import { type GiSymbolEntry, renderSymbolPage, type SymbolPageOptions } from "./symbol-page.js";
 
 /** What to index and the element config the rendered pages reflect. */
 type ApiReferenceOptions = {
+    resolveFrom?: string;
     /** GIR library identifiers to load, such as `"Adw-1"`; their dependencies are pulled in too. */
     libraries: string[];
     /** Directories to search for `.gir` files. */
@@ -26,6 +32,7 @@ type ApiReferenceOptions = {
     props?: ElementProps;
     /** GObject properties the project omits from generated props; without it pages show props that do not exist. */
     omittedProps?: OmittedProps;
+    acceptedChildTypes?: Record<string, string[]>;
 };
 
 /** Narrows an `ApiReference.symbols` enumeration. */
@@ -356,22 +363,45 @@ class ApiReference {
     private elementsByClass: Map<string, string> = new Map();
 
     private props: ElementProps;
+    private propsCatalog: PropsCatalog;
+    private giInputs: GiInputs;
+    private giFingerprint: GiFingerprint;
     private omittedProps: OmittedProps;
+    private acceptedChildTypes: Record<string, string[]>;
 
     /** Indexes every symbol and JSX element in the GIR data the options point at. */
     constructor(options: ApiReferenceOptions) {
         this.libraries = options.libraries;
         this.props = options.props ?? {};
         this.omittedProps = options.omittedProps ?? {};
+        this.acceptedChildTypes = options.acceptedChildTypes ?? {};
         this.library = Library.load(options.libraries, options.girPath);
-        this.elementContext = { library: this.library, linkFor: (): string | undefined => undefined };
+        this.giInputs = {
+            libraries: options.libraries,
+            girPath: options.girPath,
+            girFiles: this.library.girFiles,
+            storeVersion: undefined,
+        };
+        this.giFingerprint = computeGiFingerprint(this.giInputs);
+        const resolveFrom = resolve(options.resolveFrom ?? process.cwd());
+        this.propsCatalog = createPropsCatalog({
+            library: this.library,
+            props: this.props,
+            resolveFrom,
+            declarationDir: freshDeclarationDir(resolveFrom, this.giInputs),
+        });
+        this.elementContext = {
+            library: this.library,
+            linkFor: (): string | undefined => undefined,
+            handwrittenProps: this.propsCatalog.byType,
+        };
         this.buildIndex();
     }
 
     private applyElementConfig(): void {
         setElementProps(this.props);
         setOmittedProps(this.omittedProps);
-        setAcceptedChildTypes({});
+        setAcceptedChildTypes(this.acceptedChildTypes);
     }
 
     private add(entry: SymbolEntry): void {
@@ -511,6 +541,15 @@ class ApiReference {
     /** Paths of the `.gir` files the index was built from, including the ones pulled in as dependencies. */
     get girFiles(): string[] {
         return this.library.girFiles;
+    }
+
+    get inputFiles(): string[] {
+        return [...this.library.girFiles, ...this.propsCatalog.dependencies.files];
+    }
+
+    hasFreshInputs(): boolean {
+        return isGiFingerprintFresh(this.giFingerprint, this.giInputs) &&
+            hasFreshPropsDependencies(this.propsCatalog.dependencies);
     }
 
     /**

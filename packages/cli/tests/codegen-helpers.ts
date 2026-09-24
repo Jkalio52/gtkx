@@ -28,7 +28,6 @@ const GI_MODULES = [
 const JSX_MODULES = [
     join("adw", "adw.js"),
     join("adw", "index.js"),
-    "metadata.js",
     join("gtk", "gtk.js"),
     join("gtk", "index.js"),
     "package.json",
@@ -209,7 +208,7 @@ const fixtureConfig = (library: string): string =>
 const fixtureLibrariesConfig = (libraries: string[] | undefined): string => {
     const selection = libraries === undefined ? "" : `, libraries: ${JSON.stringify(libraries)}`;
 
-    return config(`${selection}, girPath: ${JSON.stringify([FIXTURE_GIR])}`);
+    return config(`${selection}, girPath: ${JSON.stringify([FIXTURE_GIR])}, agents: { reference: false }`);
 };
 
 const initialRunState = (): CodegenRunState => ({

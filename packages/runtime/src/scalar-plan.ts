@@ -32,6 +32,23 @@ const integerT: NativeDescriptor = { kind: "int32" };
 const unsignedT: NativeDescriptor = { kind: "uint32" };
 const typeT: NativeDescriptor = { kind: "biguint64" };
 const pointerT: NativeDescriptor = { kind: "struct", ownership: "borrowed" };
+const encoder = new TextEncoder();
+const decoder = new TextDecoder("utf-8", { ignoreBOM: true });
+
+const stringPlan = (descriptor: Extract<Descriptor, { kind: "string" }>): ScalarPlan => ({
+    abi: { ...descriptor, kind: "bytes" },
+    encode(value) {
+        if (value == null) {
+            return value;
+        }
+        if (typeof value !== "string" || value.includes("\0")) {
+            throw new TypeError("Expected a string without NUL bytes");
+        }
+
+        return encoder.encode(value);
+    },
+    decode: (value) => value == null ? value : decoder.decode(value as Uint8Array),
+});
 
 const enumClass = (descriptor: EnumDescriptor): ExternalObject<Handle> => {
     let library = classHandles.get(descriptor.sharedLibrary);
@@ -47,8 +64,10 @@ const enumClass = (descriptor: EnumDescriptor): ExternalObject<Handle> => {
     const typeCall = nativeBind(descriptor.sharedLibrary, descriptor.getTypeFnName, [], typeT);
     const type = nativeCall(typeCall, []).value as bigint;
     const fundamentalCall = nativeBind(LIB, "g_type_fundamental", [typeT], typeT);
-    const nameCall = nativeBind(LIB, "g_type_name", [typeT], { kind: "string", ownership: "borrowed" });
-    const fundamentalName = nativeCall(nameCall, [nativeCall(fundamentalCall, [type]).value]).value;
+    const nameCall = nativeBind(LIB, "g_type_name", [typeT], { kind: "bytes", ownership: "borrowed" });
+    const fundamentalName = decoder.decode(
+        nativeCall(nameCall, [nativeCall(fundamentalCall, [type]).value]).value as Uint8Array,
+    );
     if (fundamentalName !== (descriptor.kind === "enum" ? "GEnum" : "GFlags")) {
         throw new TypeError(`Expected a registered ${descriptor.kind} type`);
     }
@@ -165,7 +184,14 @@ const referencePlan = (descriptor: Extract<Descriptor, { kind: "ref" }>): Scalar
             abi,
             inner,
             encode: refConversion(inner.encode),
-            decode: refConversion(inner.decode),
+            decode(value) {
+                if (value == null) {
+                    return { value: null };
+                }
+                const seed: unknown = Reflect.get(value, "value");
+
+                return { value: descriptor.inout === true ? inner.decode(seed) : seed };
+            },
         };
     }
 
@@ -246,11 +272,19 @@ const nestedPlan = (descriptor: NestedDescriptor): ScalarPlan => {
     switch (descriptor.kind) {
         case "array": {
             const item = compileDescriptor(descriptor.itemDescriptor);
+            const { preserveNull = false, ...layout } = descriptor;
+            const decode = mapCollection(item.decode);
 
             return {
-                abi: { ...descriptor, itemDescriptor: item.abi },
+                abi: { ...layout, itemDescriptor: item.abi },
                 encode: mapCollection(item.encode),
-                decode: mapCollection(item.decode),
+                decode(value) {
+                    if (value !== null || preserveNull) {
+                        return decode(value);
+                    }
+
+                    return descriptor.isBytes === true ? new Uint8Array() : [];
+                },
             };
         }
         case "hashtable": {
@@ -315,7 +349,10 @@ const buildPlan = (descriptor: Descriptor): ScalarPlan => {
         case "callback": {
             return nestedPlan(descriptor);
         }
-        case "string":
+        case "string": {
+            return stringPlan(descriptor);
+        }
+        case "bytes":
         case "object":
         case "int8":
         case "uint8":

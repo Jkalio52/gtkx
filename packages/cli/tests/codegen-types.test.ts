@@ -1,13 +1,13 @@
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type CliProject, createCliProject, removeCliProject, runCli, STORE_LIBRARIES } from "./cli-project.js";
+import { isolateTypeConsumer } from "./type-consumer.js";
 
 const WORKSPACE = fileURLToPath(new URL("../../..", import.meta.url));
 const TYPESCRIPT_CLI = join(WORKSPACE, "node_modules/typescript/bin/tsc");
-const PACKAGES = ["cairo", "components", "config", "css", "forms", "native", "react", "runtime", "utils"];
 const ACCEPTED = `import type { ComboRowProps, DropDownProps, ListViewProps } from "@gtkx/components";
 import { Dialog, SpinRow, SplitButton } from "@gtkx/gi/adw";
 import { Action, DBusInterfaceSkeleton, type DBusInterfaceInfo, SimpleAction } from "@gtkx/gi/gio";
@@ -187,7 +187,6 @@ const SIGNAL_ACCEPTED = `import * as GObject from "@gtkx/gi/gobject";
 import type * as Gtk from "@gtkx/gi/gtk";
 import { useSignal } from "@gtkx/react";
 import { registerClass } from "@gtkx/runtime";
-import { createRef } from "react";
 
 class Beacon extends GObject.Object {}
 const RegisteredBeacon = registerClass(Beacon, {
@@ -196,7 +195,7 @@ const RegisteredBeacon = registerClass(Beacon, {
 });
 declare const beacon: InstanceType<typeof RegisteredBeacon>;
 declare const editable: Gtk.Editable;
-const button = createRef<Gtk.Button>();
+declare const button: Gtk.Button | null;
 
 export function useDeclaredSignals(): void {
     useSignal(button, "clicked", () => {});
@@ -224,47 +223,6 @@ import { useSignal } from "@gtkx/react";
 declare const button: Gtk.Button;
 useSignal(button, "notify::label", (value: string) => value);
 `,
-};
-
-const copyPackage = (project: CliProject, name: string): void => {
-    const source = join(WORKSPACE, "packages", name);
-    const target = join(project.nodeModules, "@gtkx", name);
-    rmSync(target);
-    mkdirSync(target);
-    cpSync(join(source, "package.json"), join(target, "package.json"));
-
-    if (name === "native") {
-        for (const file of ["main.d.ts", "index.d.ts", "internal.d.ts"]) {
-            cpSync(join(source, file), join(target, file));
-        }
-    } else {
-        cpSync(join(source, "dist"), join(target, "dist"), { recursive: true });
-    }
-};
-
-const copyTypeDependencies = (project: CliProject): void => {
-    rmSync(join(project.nodeModules, "@types"));
-    rmSync(join(project.nodeModules, "csstype"));
-
-    const reconcilerTypes = realpathSync(join(WORKSPACE, "packages/react/node_modules/@types/react-reconciler"));
-    cpSync(reconcilerTypes, join(project.nodeModules, "@types/react-reconciler"), { recursive: true });
-    const typeFest = realpathSync(join(WORKSPACE, "packages/utils/node_modules/type-fest"));
-    cpSync(typeFest, join(project.nodeModules, "type-fest"), { recursive: true });
-    const toolkit = realpathSync(join(WORKSPACE, "packages/utils/node_modules/es-toolkit"));
-    cpSync(toolkit, join(project.nodeModules, "es-toolkit"), { recursive: true });
-    const formPackage = realpathSync(join(WORKSPACE, "packages/forms/node_modules/react-hook-form"));
-    cpSync(formPackage, join(project.nodeModules, "react-hook-form"), { recursive: true });
-    const taggedTag = realpathSync(join(dirname(typeFest), "tagged-tag"));
-    cpSync(taggedTag, join(project.nodeModules, "tagged-tag"), { recursive: true });
-
-    for (const name of ["node", "react"]) {
-        const source = realpathSync(join(WORKSPACE, "node_modules", "@types", name));
-        cpSync(source, join(project.nodeModules, "@types", name), { recursive: true });
-        const dependency = name === "node" ? "undici-types" : "csstype";
-        const dependencyModules = dirname(dirname(source));
-        const dependencySource = realpathSync(join(dependencyModules, dependency));
-        cpSync(dependencySource, join(project.nodeModules, dependency), { recursive: true });
-    }
 };
 
 const exportNamespaces = (project: CliProject): string => {
@@ -319,11 +277,7 @@ describe("generated declarations in an installed consumer", () => {
         });
         state.status = runCli(state.project, ["codegen"]).status;
 
-        for (const name of PACKAGES) {
-            copyPackage(state.project, name);
-        }
-
-        copyTypeDependencies(state.project);
+        isolateTypeConsumer(state.project);
         writeFileSync(join(state.project.root, "namespaces.ts"), exportNamespaces(state.project));
     });
 

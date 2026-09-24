@@ -35,7 +35,7 @@ Counts are tracked files at the starting commit, including source, tests, fixtur
 | --- | ---: | --- |
 | `native` | 99 | API folder read; memory access fixed in batch 1; ownership migration open |
 | `runtime` | 115 | Initial call/callback path read; ParamSpec override migrated; remaining conversion/ownership work open |
-| `codegen` | 144 | All override templates read; remaining generator folders pending |
+| `codegen` | 144 | All override templates, GIR, analysis, writer, direct store and reference modules and compile entry read; metadata, imports, inheritance, GIR parsing/freshness and configured reference props fixed; remaining generator folders pending |
 | `react` | 47 | Core reconciler read; nullable drag icon fixed; lifecycle and metadata migrations open |
 | `components` | 50 | All files read; all initial findings resolved; repeat review continues |
 | `animated` | 19 | All files read; text, prop contracts, dead code, tests and guides fixed; upstream ref compatibility retained |
@@ -47,16 +47,16 @@ Counts are tracked files at the starting commit, including source, tests, fixtur
 | `navigation` | 66 | All files read; stack option lifetimes, closing headers and lazy route restoration fixed; repeat review found no further local defect |
 | `storybook` | 31 | All files read; unset selections, readonly controls, shared types and documentation fixed; upstream strict declaration checking remains open |
 | `config` | 18 | All files read; concurrent import isolation fixed; repeat review continues |
-| `cli` | 262 | Generated consumer and catalog-reference fixes verified; full package pending |
+| `cli` | 262 | Command, codegen, settings, development, Node runtime, vendored tools, payload, freedesktop, notices and nFPM folders read with their callers; consumer, catalog and schema fixes verified; full package pending |
 | `create-gtkx` | 31 | All files read; option parsing, installation recovery, duplication and guides fixed; installed TypeScript and JavaScript consumers pass |
 | `mcp` | 26 | All files read; configuration refresh/discovery, registration and settings errors fixed; repeat review found no further confirmed defect |
-| `testing` | 60 | ComboRow display-value matcher fixed; full package pending |
+| `testing` | 60 | All files read; deadlines, text queries, clipboard behavior, Unicode and matcher fixes pass; repeat review found no further confirmed defect |
 | `vitest` | 12 | All files read; packaged preload, Sway configuration and notification sink fixed; repeat review found no further confirmed defect |
 | `e2e` | 117 | Relevant regression coverage reviewed with each fix; full suite audit pending |
 | `eslint` | 36 | All files read; public-surface traversal and cache correctness fixed; prefix restriction removed; independent review passed |
 | `utils` | 60 | All 59 current files read; maintained helpers replace duplication; process protocol and identity parsing shared; public consumer checks pass |
 
-Outside the packages, the starting scope includes 397 example files, 174 website files, 15 scripts, 23 GitHub configuration files, 3 patches, 30 root files, and one file each under `docs`, `.nx`, and `.vscode`. All remain open for a full file review, including documentation read for context during this first batch.
+Outside the packages, the starting scope includes 397 example files, 174 website files, 15 scripts, 23 GitHub configuration files, 3 patches, 30 root files, and one file each under `docs`, `.nx`, and `.vscode`. All top-level scripts and GitHub configuration files have now been read. The batches below record the reviewed example and website files; their remaining inventories and the other root files stay open.
 
 ## Batch 1: architectural boundaries
 
@@ -441,6 +441,304 @@ The process guard and launcher now share their private message types and process
 
 All 203 affected integration cases pass: 68 CLI, process and codegen cases and 135 renderer cases. Utility builds, consumer typechecks, package lint, Knip and the frozen install pass. Independent review found no additional defect in these changes.
 
+### Testing package audit
+
+All 60 tracked testing files and both guides were read, alongside eight existing consumer suites. Async polling now enforces its deadline even when the callback remains pending. Label queries and matchers use rendered text, decode native markup through Pango, and keep mnemonic targets inside the mapped query scope. Keyboard input converts Unicode through GDK and advances by complete characters.
+
+Clipboard helpers invoke native actions, preserving readonly and protected text, password restrictions, existing clipboard contents and native undo history. Hook rerenders distinguish omitted props from explicit `undefined`. Class matchers can reuse global and sticky patterns, and empty labels count as empty widgets. Runtime value packing replaces the drop helper's duplicate GValue construction; widget checks and controller lookups are shared. Tests no longer patch widget internals or assert a private normalizer directly.
+
+Regressions fail against the previous implementations. All 254 public integration cases pass across 20 files, including query performance and activation held by another process. Source and full e2e typechecks, package and consumer lint, and the testing build pass. Native clipboard and markup views were visually inspected. The guides now share a concise GTKX-focused structure, with accurate headless setup, query scope and error handling. Independent review found no additional confirmed defect.
+
+### Custom element metadata and subclassing
+
+A production application that retained a GI base class without its generated JSX component could lose inherited property metadata. Removing a custom scale's `digits` prop then left its previous value instead of restoring the native default. Generated GI classes now register their own property and signal metadata. Custom class registration derives declared property metadata from its existing ParamSpecs, so native construction receives construct-only props and later prop removal restores writable defaults.
+
+The separate JSX metadata module and duplicate property-entry type are removed. Three built-application cases cover inherited and declared defaults, omitted props, constructor-time values and rejected construct-only updates. All 428 CLI cases and 910 existing React cases pass, alongside affected builds, typechecks, lint and independent review. The subclassing guides now use complete JSX examples and upstream links instead of API inventories or GtkBuilder instructions; the native example was visually inspected. Website validation remains part of the next combined checkpoint.
+
+### Runtime string conversion
+
+String encoding and decoding now live in runtime. The native descriptor accepts terminated byte storage and retains responsibility for allocation, copying, bounded reads and ownership. Runtime string APIs remain unchanged. Callback returns preserve their declared lifetimes, and native string vectors can carry invalid UTF-8 without constructing Rust UTF-8 string types.
+
+The migration exposed a bounded-buffer overread: filling an allocated character buffer without a terminator caused decoding to read beyond its end. An isolated sanitizer regression confirms the previous heap-buffer-overflow; decoding now searches only the owned buffer. Byte output uses Node-owned backing storage. A confirmed napi-rs copy defect requires an explicit copy after allocation and is tracked as U12 with standalone reproductions against versions 3.12.2 and 3.12.4.
+
+All 376 native package cases, 127 focused integration cases and seven runtime storage cases pass. Sanitizer passes cover 102 native memory cases, the 127 integration cases, all 60 native call cases including six byte-vector regressions, and bounded storage. Typechecks, lint, rustfmt and Clippy pass. Memory checks measure repeated batches after allocation warm-up under the unchanged 40 MiB growth limit; the original callback leak still fails at roughly 993 MB growth. The normal addon and runtime artifacts are restored.
+
+A worker shutdown stress check separately reproduces an intermittent process crash on both the previous and current addon. Instrumented runs have not yet identified its cause; that finding remains open. Container conversion and the remaining R2 responsibilities are also still open.
+
+### Code generation writer audit
+
+All nine files in `packages/codegen/src/writer` and `compile.ts` were read, together with their public CLI generation path. Named imports sharing a module with a namespace import produced invalid syntax; a type-only namespace silently discarded the named imports. Public custom element configuration can reach both cases. The writer now emits separate import declarations.
+
+Three generated-consumer cases cover ordinary named props, both shared namespace forms and incompatible values. They invoke codegen and TypeScript with library checking enabled. All three pass, as do seven existing documentation cases, codegen compilation, CLI test types and lint. Independent review found no further confirmed defect in this scope.
+
+### Hook targets and declarative settings
+
+All 12 hook files were read. Property, signal and settings-binding hooks now receive native instances; state-backed callback refs make JSX creation and replacement observable to React. The mutable-ref union and its private resolver are removed. Settings hooks receive a JSX-created settings instance instead of constructing one internally. Application-owned settings can be shared through React context, including relocatable schema paths.
+
+Subscription setup now invalidates the first cached snapshot, covering native changes between render and subscription and GSettings' requirement to read a key after connecting. An immediate signal handler that throws disconnects its newly installed handler before propagating the error. Eight public regressions fail against the previous implementation and pass with these changes. All 920 React cases, 35 CLI build cases and 19 isolated tutorial cases pass. The full e2e typecheck passes at the default heap size; an explicit generic return type in the settings test helper removes an unnecessary type expansion.
+
+Independent review found a missed video-demo ref consumer. The demo now passes native window instances, and its tick hook follows instance identity directly. This removes repeated registration synchronization and test ref casts. Nullable cursor results and selection notifications follow their declared contracts; selection notifications without an ID preserve the application's explicit selection. All 146 affected demo cases, source/test types and lint pass. The video was inspected through the real application, including fullscreen, exit, close and reopen. Tutorial preferences persisted across remount and were visually inspected. The v2 guides and tutorial use the new hook contracts; stable-version documentation remains unchanged.
+
+### Collection null-result policy
+
+The collection review fully read 15 runtime modules and 16 native codec/storage modules, 7,929 baseline lines. Runtime now owns whether a null collection decodes as an empty array, an empty byte array, or null. Native descriptors and codecs no longer carry that policy. Callback reference transport distinguishes an absent output slot from a slot containing a null collection, preserving the public inout seeds. GByteArray GValue reads use an explicit nullable descriptor and no longer make a separate pointer-probe call. Native ownership, allocation, traversal and bounds are unchanged.
+
+Public native-library fixtures cover calls, outputs, fields, callback inputs, inout seeds and absent slots, with separate native property and GValue coverage. All 376 addon cases, 508 generated-native cases and 204 focused cases pass. The final GValue follow-up passes all 21 cases, including null, empty, populated and invalid values. Runtime/dependency builds, default-heap test types, lint, rustfmt and Clippy pass. Independent review found no blocker in this migration. The normal addon and runtime artifacts are aligned; remaining collection packing and ownership work stays open.
+
+### Cursor ownership and sanitizer validation
+
+Review of PR [#658](https://github.com/gtkx-org/gtkx/pull/658) identified a cursor descriptor that could claim ownership of another argument's buffer. Native binding now rejects that descriptor before a call can be made. Borrowed cursor decoding is unchanged. The regression exercises descriptor rejection only; existing generated bindings cover empty, populated and invalid byte inputs.
+
+All 61 native call cases and 40 generated array cases pass, alongside lint, rustfmt and Clippy. The complete sanitizer target passes 377 addon cases and 509 generated-native cases, with no sanitizer error, and restores the normal addon. Its per-test deadline is now two minutes: CI's five failures were successful 31–42 second operations exceeding the ordinary 30-second deadline. Iteration counts and memory-growth limits are unchanged. Runtime discovery happens before instrumentation, and a failed instrumented build now also enters the normal-build restoration path.
+
+### CI fixture and review follow-up
+
+The first PR run passed ordinary integration tests, typechecking, fresh publication/tutorial consumers and CodeQL. Its remaining failures exposed stale isolated consumers and test timing: copied utility declarations needed their es-toolkit dependency, and the signal fixture still used the removed mutable-ref hook contract. The demo fixture now preserves its optional close callback instead of inventing a no-op. MCP's imported-config refresh test allows the freshness interval plus two reference loads under coverage; a real covered subprocess confirms the refresh succeeds. No production timeout changed.
+
+The combined local checkpoint passed all 66 lint tasks, 63 type/build tasks and 46 test/build tasks. Subsequent inheritance review fixes and release tooling remain subject to the next checkpoint. Copilot's cursor finding is addressed above. Its worker-preload comment does not match the actual worker fixture, which imports the built entry point and passed all 28 headless cases. The suppressed drag/drop suggestion is already covered at the input boundary; self-drop preserves order. A real scaffolder retry replaced malformed package JSON successfully, so the suppressed manifest-recovery comment did not establish a supported-path defect. No review comments or replies were posted.
+
+### Code generation analysis audit
+
+All ten analysis files were read, 2,996 baseline lines, with their callable, async, vtable and interface emission paths. Inheritance comparisons now use the generated return shape: output tuples, skipped returns, folded lengths, caller-allocated outputs and async finish results. Callback parameter types retain their own signatures. Virtual functions use the slot renderer's result with the original parameter indices. Scratch contexts keep comparison imports out of generated modules.
+
+Repeat review exposed ancestor ownership differences. Shared selection now follows emitted methods and runtime mixin precedence: class declarations win, followed by the oldest ancestor's interface methods, retaining interface order within each level. Shadowed GIR methods no longer create false interface omissions. Public CLI generation and strict consumer declarations cover these cases, including incompatible consumer types. All 97 focused cases pass, with 21 analysis cases, alongside codegen/CLI types and lint. Independent review found no additional actionable finding in this scope.
+
+The separate monorepo store-resolution fallback is addressed in the store audit below.
+
+### Release tooling audit
+
+All 14 tracked top-level script files besides the separately reviewed sanitizer runner were read, 2,142 baseline lines, with their workflow and package callers. The local registry now rebuilds its storage on startup, so unchanged package versions can serve updated tarballs. Its servers bind to loopback. Temporary-directory ownership surrounds startup as well as normal operation, so failed startup removes its files and closes listeners. Headless display types derive from their existing implementation.
+
+Two real local-registry starts rebuilt and locally published the workspace. Fresh npm consumers observed values 1 and 2 from the same probe package version across restart. Public command failures on occupied primary and proxy ports leave no temporary directory or listener; the previous command left its directory behind. Owned listener inspection confirms the loopback address. Temporary validation paths were removed from the checkout.
+
+Publication visibility requests now share the polling deadline, and a late successful response cannot pass. The real release command against a local HTTP registry fixture accepted immediate and 200 ms responses, rejected delayed and hanging responses at approximately 500 ms, and restored its manifest on both outcomes. The previous command incorrectly accepted a 1.5-second response with the same 500 ms limit. The obsolete getting-started pin-list synchronization is removed; tutorial dependencies and the documentation version manifest retain their existing synchronization. Root types, affected lint, whitespace checks and independent review pass. Complete release and tutorial consumers are the next checkpoint. Their existing startup smoke check establishes process liveness for eight seconds; visual application checks remain separate.
+
+### Workflow and contributing documentation audit
+
+All 23 tracked GitHub configuration files were read, 1,418 baseline lines. CI now builds the website for pull requests and main updates, including documentation-only changes. The existing code-change filter now requires both the inclusion and Markdown exclusion patterns to match; its job declares the pull-request read permission required by the pinned action. The exact action was run against a temporary Git checkout: unchanged and Markdown-only cases skip code jobs, while code-only and mixed cases select them. Workflow YAML and aliases parse, and independent review found no additional issue in these changes. The website deployment workflow remains release-driven.
+
+All nine Contributing pages were reread against the current implementation. Three pages now identify generated GI classes as the owners of property and signal metadata; JSX retains those classes. The architecture call path distinguishes runtime conversion from native storage preparation. The complete production website build passes all 27 tasks, including current API generation, page rendering and sitemap generation, in seven minutes 21 seconds. The new PR job will keep that validation alongside the code checks.
+
+### Generated store audit
+
+All six direct generated-store modules were read, 1,207 baseline lines, with their CLI resolution and compilation callers. Resolution now requires installed dependencies; a `packages/<name>/package.json` source directory cannot stand in for one. Unused temporary dependency links and their option plumbing are removed because declaration and module transpilation do not resolve imports.
+
+Four public CLI cases cover missing native/runtime dependencies and GI-only consumers with uninstalled React source directories. Existing store publication and generated-consumer cases also pass. Independent review found no additional actionable issue in these changes.
+
+### GIR freshness follow-up
+
+Changing GIR search-directory or root-library order could leave the previous bindings marked fresh. Adding a GIR earlier in the search path had the same effect. Fingerprints now retain configuration order and resolve recorded GIR names through the same lookup used for generation before comparing their contents. Built-in string sorting replaces the handwritten ordinal comparator where order is only needed for stable hashing.
+
+Eight public CLI cases import generated constants after direct and transitive shadowing, search-order changes, duplicate version selections, removals and directory aliases. Missing GIR input fails while preserving the previous usable bindings. The previous implementation selected stale values in four supported cases. All 90 focused integration cases pass, including store publication, generated types and documentation, alongside codegen/CLI/test types, lint and independent review.
+
+### Tutorial introduction and storage audit
+
+The first six v2 tutorial chapters were read in full, 1,038 baseline lines. They now focus on GTKX application setup, imports, slots, signals and the steps needed to build Tasks. React and Zustand explanations link to their own documentation. Repeated code and inaccurate claims about rendering, seeding and serialization are removed. GLib's markup escaping replaces a handwritten helper. Three later chapters were also read, 1,961 baseline lines, to align prerequisite imports and storage snippets; their broader prose audit remains open.
+
+The installed tutorial previously continued with seed data after unreadable or malformed storage and overwrote unsupported-version data during startup. Only a missing file now starts a fresh store. Synchronous hydration failures stop initialization; unsupported saved versions fail without replacing the file. GLib supplies the data directory and atomic file replacement, removing the application's temporary-file implementation and permissive migration guard.
+
+All 20 native application tests, three localization tests, installed consumer types and five cumulative chapter typechecks pass. Five built-app startup cases cover missing and empty stores plus malformed, unreadable and unsupported-version failures with unchanged saved bytes. Live application checks confirm text entry, persistence across restart and preservation of the previous file after a failed save. Both application screenshots were inspected. Local links, code fences and whitespace checks pass. Repository ESLint intentionally excludes the standalone tutorial; library-only forced lint is not part of this validation. The earlier publication checkpoint refreshed the tracked gettext input list and source references without changing translations.
+
+### Second PR review follow-up
+
+At `2decda13`, the PR's main tests, CLI tests, sanitizer, fresh publication consumers, documentation, lint, typechecking and CodeQL pass. Coverage passes 4,778 cases but two real ESLint configuration tests take 5.32 and 5.87 seconds against the default five-second deadline. The ESLint integration project now allows 30 seconds per test. All 89 cases pass under V8 coverage with that configuration, alongside package lint and source/test types. Assertions, hooks and production behavior are unchanged; the remote coverage run still needs to pass.
+
+Copilot repeated the manifest recovery concern already checked through the real scaffolder. Its CSS suggestion requests restoration of the malformed-input containment removed under CSS1. Public CSS input already passes through PostCSS before serialized rules reach the stylesheet; the review supplies no supported-input serialization regression. GTK semantic diagnostics remain delegated to its provider. Independent source and contract review found no actionable production change for either comment. No review replies were posted.
+
+### Root configuration and documentation audit
+
+All 29 directly tracked root files besides the generated pnpm lockfile were read, alongside the editor settings and three version plans. The lockfile was parsed structurally; its dependency resolution remains validated through the existing frozen install and fresh publication consumers. No new configuration defect was confirmed in this scope.
+
+The README advertised beta installation while linking to stable-version documentation and describing the branch as production-ready. It now identifies the 2.0 beta and scheduled release date, links to the matching guides and tutorial, and describes generated native bindings without unsupported universal API claims or third-party maintenance comparisons. Contributor release instructions no longer refer to removed guide pins. README documentation targets resolve to local pages, the release manifest agrees with its status, and independent review and whitespace checks pass.
+
+### Store and tutorial validation checkpoint
+
+At `af1eff2e`, the combined local run passes all 46 test/build tasks across 19 projects, followed by fresh TypeScript and JavaScript release consumers installed from the temporary local registry. Both consumers generate bindings, build, launch and pass their tests; the TypeScript consumer also passes typechecking. The production website passes all 27 tasks, including reference generation, page rendering and sitemap generation. The preceding combined lint and typecheck runs pass 66 and 63 tasks respectively. These checks include the store freshness and tutorial storage changes; subsequent GIR, reference and literal-text fixes require their own validation.
+
+### GIR parsing and record layout audit
+
+All 28 GIR modules were read, 2,172 baseline lines, with their XML and record emission callers. String constants now retain their exact whitespace; flags and non-string literals keep their existing normalization. Parser metadata preserves field, anonymous record and anonymous union declaration order. Non-introspectable fields remain part of native layout but no longer appear in accessors, constructor props or collection element types. Record layout caching follows parsed record identity, so a second generation cannot reuse another project's definition with the same name.
+
+Public generation checks confirmed all four defects without loading record bindings. The fixed generator preserves a padded constant, places an interleaved record's trailing field at offset 12, omits hidden accessors and uses offset 8 after a nested record grows in a subsequent generation. Ten new public generation cases cover exact constant imports with addons disabled, accepted and rejected consumer declarations, generated layout output, successive projects and malformed XML preserving published bindings. All 50 GIR, documentation and store cases pass, alongside codegen/CLI builds, source/test types, lint and independent review. The next combined checkpoint will regenerate installed-library bindings and run their normal sanitizer coverage.
+
+### Reference element configuration follow-up
+
+The eight CLI command modules and six CLI codegen modules were read, 544 and 1,054 baseline lines, with their entry and preparation helpers. All six codegen reference modules were also read, 2,908 baseline lines. A fresh `gtkx docs` run omitted GTKX's built-in props until generated bindings existed. Both CLI reference paths now read generation-safe element configuration directly; the store-existence wrapper is removed.
+
+MCP previously loaded only GIR inputs, so its pages omitted factory props and child constraints and advertised properties excluded from generated JSX. It now supplies built-in configuration and merged project omissions. Each cached reference restores its own configuration before rendering. Three public MCP regressions fail against the previous implementation and pass after the fix, including alternating projects with different omitted props. All 63 MCP cases and all 14 CLI docs cases pass, alongside affected builds, source/test types, lint and independent review. The existing no-new-comments lint exemption covers the new reference option. Project-supplied prop types remain under investigation; this does not close the full reference audit.
+
+### Tutorial lists, search and editor audit
+
+The lists/sidebar, smart views/search and task editor chapters were fully reviewed, 1,966 baseline lines, alongside the adaptive-layout chapter and application/navigation consumers. The three revised pages total 1,301 lines. They preserve saved tasks, provide complete import and component steps, and describe GTKX slots, signals and native lifetime without duplicating React, Zustand or form-library lessons. Claims about navigation, subtitle removal and signal suppression now match the implementation. The existing selection anchor and later chapter prerequisites remain valid.
+
+Search messages could interpret user queries as Pango markup, and sidebar rows did the same to list names. GLib escapes status-page descriptions and action rows display titles without markup. The shared navigation guard now accepts the object-or-undefined type supplied by React Navigation instead of rechecking unsupported primitive/null inputs. Five new public application cases cover ordinary text, markup characters and Unicode; four fail against the previous literal-text implementation. All 25 application cases, three localization cases, installed consumer types and builds pass. Four cumulative chapter consumers typecheck, and the final editor chapter builds and runs independently. Live checks confirm literal text, title drafts surviving importance changes, persisted notes and completed Back navigation; application and chapter screenshots were inspected. Gettext changes update timestamps and source locations only. Independent review, local links, code fences and whitespace checks pass; the production website checkpoint is next.
+
+### GIR, reference and tutorial validation checkpoint
+
+At `ac5309c8`, local lint passes 66 tasks, typechecking passes 63, and the combined suite passes all 46 test/build tasks across 19 projects. Sanitizers pass 377 addon and 509 generated-native cases, 886 total. Fresh TypeScript and JavaScript release consumers install, generate bindings, build, launch and pass their tests; TypeScript also passes typechecking. The production website passes all 27 tasks, including page rendering and sitemap generation.
+
+All remote checks passed for `af1eff2e`, including the coverage cases whose timeout was corrected. At `ac5309c8`, main tests, sanitizers, release consumers, lint, types and CodeQL pass; CLI tests, documentation and coverage remain in progress. Copilot skipped the prior checkpoint because the PR exceeds its 300-file review limit. That is not a clean external review. Independent scoped reviews continue; no review replies were posted.
+
+### Tutorial commands, deletion, preferences and reordering audit
+
+The next four tutorial chapters were read in full, 1,368 baseline lines, alongside 33 application source/configuration/test files and relevant framework contracts. The pages now provide the missing imports, dialog state and navigation steps, retain beta installation instructions and explain GTKX behavior without duplicating upstream lessons. Preferences introduce the settings they use; reminders remain in their own chapter.
+
+Deletion toasts now display titles literally. New tasks use the final stored position after permanent deletions; the reorder action already moves the backing array and renumbers positions together. A JSX-created widget paintable supplies drag icons through a root portal. The synchronous content-provider return remains inside the native signal handler.
+
+All 31 application cases and four cumulative chapter typechecks pass, along with complete tutorial source/test types. Public cases reproduce the old literal-text and append-order failures, including reorder followed by deletion and addition. Real Wayland pointer drags exercise icon preparation and persisted reordering before and after row remounts; drag and literal-toast screenshots were inspected. Repository ESLint intentionally excludes this standalone application. Packaging, localization extraction and the combined website checkpoint will follow this batch.
+
+### GSettings import and development audit
+
+All four CLI settings modules were read, 734 baseline lines, alongside the settings Vite plugin, staging/import helpers and development restart callers. Schema parsing now uses the shared validated XML reader. It resolves inheritance across imported files and keeps one key-kind model for runtime exports and declarations, removing unused enum/choice reconstruction. Invalid or incomplete XML fails before replacing usable consumer declarations.
+
+Schema staging preserves the already-validated unique basenames. Hashing those names could put a derived schema before its base and make a valid native schema set fail to compile. The existing staging owner now registers cleanup before compilation, so failed development starts leave no temporary schema directory. Editing an imported schema first compiles the complete set, then restarts the development process so Gio reads the new keys and defaults. A failed edit preserves the current running application and can recover on the next valid save. Adding schema imports to an already-running source module remains a separate follow-up.
+
+Thirteen public CLI cases pass against both the isolated CLI prototype and the canonical build: same-file and cross-file transitive inheritance, enum/flags/choice kinds, relocatable references, native override defaults, strict accepted/rejected consumer types, invalid XML preserving declarations, failed-start cleanup and live edit/failure/recovery behavior. Each fixture owns its generated store. Independent review, affected lint and CLI test types pass, alongside canonical codegen, CLI and MCP builds. The combined release and website checkpoint follows the configured-props reference batch.
+
+### Latest Copilot follow-up
+
+Copilot reviewed 279 of 621 changed files at `ac5309c8` and requested missing-ID and same-item guards in the tutorial reorder action. Independent review traced every caller: pointer drops validate incoming IDs against the current store; keyboard moves use neighboring visible task IDs; permanent deletion occurs in Trash, where reorder controllers are absent. Normal deletion retains the task ID, and a same-item move preserves its position. Existing pointer, keyboard, remount and reorder/deletion/addition checks cover these workflows. No supported failing path was found, so unsupported-input guards were not restored. This partial review does not establish a clean review of the entire PR. No reply was posted.
+
+### Analysis quality-gate follow-up
+
+Every GitHub workflow job passes at `ac5309c8`. Sonar reports 89.8% coverage on new code and no new duplication, but its reliability gate flags eight uses of built-in ordinal sorting in the fingerprint module. Those inputs need deterministic hashing, not locale-sensitive display order. A file-specific S2871 exception preserves that contract without adding a handwritten comparator. Two S6564 exceptions preserve the public `TextClusterFlags` and `FtSynthesize` type names while accepting numeric bit combinations. The duplicate runtime type imports reported by S3863 are combined. These are scoped analysis settings and an import cleanup; the next remote analysis must confirm the gate passes.
+
+### Configured element props and live references
+
+The 19 changed production TypeScript modules were read completely with their declaration and configuration callers. CLI docs, generated agent references and MCP now include project-configured prop exports. A TypeScript checker replaces the handwritten declaration parser, covering interfaces, inherited generics, utility types and reexports. Reference generation shares the actual GI generator, overrides and declaration emitter. It reads the validated generated store when available and produces the same declarations in memory on a first run; it retains only the rendered catalog and dependency fingerprint.
+
+Built-in declarations resolve from codegen's dependencies, while configured packages resolve from the consuming project. Codegen declares its Cairo dependency explicitly, and Node type resolution works with hoisted installations. Invalid modules, missing or value-only exports and absent GIR types fail before replacing usable reference pages. Generated-consumer checks share their existing installation helper and keep strict declaration checking enabled.
+
+Reference freshness tracks declaration contents and module resolution. A running MCP server also rechecks GIR search priority and all supported configuration candidates, including files that did not exist during its previous load. Public consumers reproduced stale pages after a higher-priority GIR or config appeared; add/remove cases now pass. Relative configured GIR paths resolve from the selected project root across CLI and MCP. Conflicting launch-directory fixtures reproduced the previous wrong-project output through `--cwd` and `projectRoot`.
+
+All nine configured-props cases, 15 CLI docs cases, 28 MCP reference cases and 30 existing strict generated-consumer cases pass. Codegen, CLI and MCP builds, source/test types, affected lint, whitespace checks and independent review pass. The guide describes the resulting reference and relative-path behavior. The combined release, tutorial and website checkpoint follows this commit.
+
+The first combined lint run found two exports left unused by the settings cleanup and the fixture packages copied dynamically into public consumers. The exports are now local, and Knip excludes only that fixture tree, following the existing fixture convention. Knip, affected lint and independent review pass; the combined checkpoint restarts with this cleanup.
+
+### Clean source bootstrap follow-up
+
+The first reference-batch CI run exposed a source-checkout dependency: bootstrap codegen requested React's published declarations before React was compiled. Installed consumers already had those declarations and passed. An explicit repository bootstrap configuration now generates bindings without the agent reference. A separate target builds the CLI and its dependencies before generating that reference; ordinary consumer codegen remains unchanged. Root build/codegen commands and root lint/typechecking include the final reference target without adding a cycle to package builds.
+
+A clean copied checkout with no generated store or package declarations passes postinstall, source bootstrap, CLI dependency compilation and built-CLI reference generation. Its reference includes the built-in callback prop. Both Nx dependency graphs, root types, Knip, affected lint, whitespace checks and independent review pass. The bootstrap configuration is a narrowly registered analysis entry; this introduces no production fallback for the monorepo.
+
+The combined suite passed 45 of 46 tasks. Four CLI store-publication cases rewrote their synthetic configuration without preserving the reference-disabled setting supplied by the initial fixture helper. Their deliberately minimal GTK GIR cannot supply real GTK reference prop types. The shared fixture config now retains that explicit setting during rewrites and shared-store checks. All 42 affected store, publication and configuration-isolation cases pass, alongside affected lint and independent review. Dedicated reference consumer coverage remains enabled.
+
+Copilot reviewed 281 of 649 files at `2bed4b00` and repeated the already tracked GL callback-retention finding. Its summary also mentions hash-table validation without a corresponding new inline finding. This remains a partial review; no reply was posted. Repeat reference review separately reproduced omitted branch-specific props for a discriminated union through the real CLI. That supported declaration case is queued for the next reference batch.
+
+### Published declaration dependency follow-up
+
+At `a8a6f356`, combined lint, typechecking and all 46 test/build tasks pass; 35 tasks reuse valid Nx outputs. The fresh published consumer then fails because React's public declarations reach `react-reconciler` through the root container type, but its declaration package was listed only as a development dependency. `@types/react-reconciler` is now a regular dependency at the same version. Strict declaration checking remains enabled.
+
+Both fresh TypeScript and JavaScript consumers now pass scaffold, binding generation, build, launch and tests; the TypeScript consumer also passes typechecking. All 20 published package shapes pass. The installed tutorial passes its build, launch, types, 31 application tests, three French tests and localized AppImage/deb/rpm launch checks. Flatpak manifest validation passes; this does not claim a source Flatpak build. Independent review and whitespace checks pass. Full website validation is recorded below.
+
+Copilot's latest review covers 281 of 651 files at `a8a6f356` and adds no new inline comments. Its suppressed reorder and manifest suggestions repeat previously reviewed concerns. The summary also mentions two documentation examples without supplying corresponding inline findings. The tracked GL callback issue remains open. Main CI tests, sanitizer, lint, types and CodeQL pass at that commit; publication failed before this dependency correction, and the remaining jobs are still running. No review reply was posted.
+
+### Final tutorial chapters
+
+The reminders, testing, packaging, internationalization and Flatpak chapters were read completely with their application, test and deployment callers. Their revised prose focuses on GTKX and links to upstream documentation. The obsolete store-only testing lesson and complete test-run transcripts are removed. Complete native UI tests replace the invalid setup snippet; the French chapter now supplies its missing test file. Packaging gives the required icon and license steps and distinguishes a generated source manifest from a completed source build.
+
+The English test configuration now fixes its locale. A real consumer with an inherited French environment failed English widget queries before this change and passes afterward. Exact chapter snippets pass strict consumer typechecking and three English plus three French UI cases. French application screenshots were inspected. The minimal packaging configuration passes typechecking and real manifest generation. Imperative notification creation and the example's notification mocks remain tracked work; the prose revision does not close those implementation gaps.
+
+The combined installed tutorial checkpoint passes all 31 application tests, three French tests, build, launch, types, localized AppImage/deb/rpm launches and Flatpak manifest validation. Gettext updates contain source locations and extraction metadata only; translations are unchanged. All 27 website build tasks pass, rendering 6,122 pages and generating the sitemap. Local page links, code fences, whitespace checks and independent review pass. All v2 tutorial chapters have now been read; repeat review continues alongside the remaining application findings.
+
+### Development schema inputs and upstream types
+
+All 17 development modules were read, 1,819 baseline lines, alongside the shared import scanner and Storybook session. Adding, replacing or removing a schema import during Fast Refresh previously left Gio's process-level schema catalog unchanged. Development now records the running process's schema inputs and restarts after validating a changed complete set.
+
+Import discovery reports incomplete scans explicitly. A syntax error in one component no longer makes its schema imports appear removed when another component is saved. Ordinary child refresh preserves the running app and React state. XML edits also wait for complete source discovery; a pending edit is applied after source repair even when the import set is unchanged. Invalid XML preserves the running app until the next valid save.
+
+Vite's own server, module and resolved-config types replace copied declarations. This removes optional-field fallbacks that Vite's actual types do not require. The supervisor's unused process-factory option and stored function are removed; both public command callers already use the same real process launcher.
+
+All 501 CLI cases across 49 files pass, including the new real development sequence, existing shutdown/reload behavior, Storybook, settings, build and deployment cases. The regression observes process identity, mounted React state, continued activity and native schema defaults through nullable lookups. Build, source/test types, affected lint, Knip, whitespace checks and independent review pass. The type cleanup preserves the validated runner's emitted JavaScript.
+
+### Node runtime and payload audit
+
+All six Node runtime modules, two vendored tool modules and five payload modules were read, 525, 136 and 503 baseline lines, with their staging and configuration callers. Maintained npm semver now parses and compares Node releases. The shared minimum remains authoritative; malformed leading-zero and unsafe-integer releases are rejected. Executable failures and version validation no longer depend on matching error-message prefixes.
+
+The runtime-path and generated-launcher cases now execute copies of the real Node binary instead of shell substitutes. All 22 runtime-version cases and three launcher cases pass, covering supported versions, relative paths, literal environment values and arguments, rejected versions, missing runtimes and execution failures. Build, source/test types, affected lint, Knip, frozen installation and independent review pass. Regenerating Nx's stale dependency graph resolves its initial version mismatch without a production change.
+
+The ELF reader still contains handwritten binary parsing; a suitable maintained replacement remains under evaluation. The payload review found no additional confirmed production defect. The ten freedesktop modules were also read, 944 lines. Their handwritten AppStream diagnostic parser can use the existing validator's structured YAML report; that change is the next metadata slice. Notice provenance and explicit package-license files are being reproduced separately.
+
+### Union props and reference snapshots
+
+Configured discriminated unions now retain branch-specific properties and overlapping index signatures in reference pages. TypeScript supplies contextual property types instead of a handwritten union merger. Generated JSX composes configured props through the existing intersection emitter, allowing union aliases while preserving inherited element contracts.
+
+A real declaration edit during generation reproduced old documentation cached with a newer fingerprint. Fingerprints now hash the declarations and resolver metadata actually read by the compiler. Freshness uses the same decoded text, including UTF-8 and UTF-16 BOMs. Returned cache records retain only filenames, resolutions and the digest; compiler graphs and synthetic union probes are discarded.
+
+All 14 configured-props CLI cases, three existing JSX contract cases and 29 MCP reference cases pass. Strict generated-consumer coverage also passes. Natural CLI/MCP race probes fail before the snapshot correction and pass afterward; a filesystem-only synchronization barrier makes the public CLI regression repeatable. Build, source/test types, affected lint, Knip, whitespace checks and independent review pass.
+
+At `f6793578`, CI passes publication consumers, sanitizers, CLI tests, documentation, lint, typechecking and plan checks. Its main suite has five MCP reference test-deadline failures: cold generation takes about 34 seconds and repeated reload sequences take 60–82 seconds. Only the reference test file now allows five minutes per case; shared, request and polling deadlines remain unchanged. The revised 29-case file passes locally in 325 seconds. Coverage analysis is still running. Measured reference startup separately identifies repeated GI declaration generation as the main avoidable cost; fresh generated-store reuse is being prototyped without deferring strict prop validation.
+
+Copilot reviewed 281 of 652 files and added no new inline findings. Its nullable activation suggestions concern tutorial actions that explicitly require string parameters. Gio guarantees the expected type when emitting SimpleAction activation, and the notification targets supply string variants. The other suppressed suggestions repeat previously reviewed cases. This partial review does not close the full audit; no reply was posted.
+
+### Structured AppStream validation
+
+AppStream validation now reads the validator's YAML report through the existing YAML dependency. Handwritten diagnostic matching and English success-summary filtering are removed. Known rule identifiers, native explanations and the existing target-specific warning policy remain available. A terminated validator retains a failed process status instead of being treated as a successful exit.
+
+All 48 deployment, metadata, source-Flatpak and localization cases pass. Public warning cases accept a Debian preview and reject a source-Flatpak preview using the same native warning; malformed metadata and unsupported tags remain rejected. Build, source/test types, affected lint, whitespace checks and independent review pass. The warning cases assert only exit status.
+
+The review also reproduced an upstream AppStream YAML command returning success for missing input. U14 in `~/UPSTREAM.md` records the standalone reproduction and current upstream cause. GTKX supplies freshly written metadata, so no production workaround was introduced. A separate source review found that Debian copyright serialization discards SPDX grouping; a public reproduction and maintained-parser correction remain follow-up work.
+
+### Bundled notice provenance
+
+All eight notice modules were read with the build manifest, metadata reader and target renderers. Deployment previously reread installed packages after the bundle had been built, so replacing a dependency could attach the replacement's terms to old code. Build metadata now records dependency identity, source, copyright and license text at build time. Deployment uses that snapshot even when the installed dependency changes or disappears. The metadata format is version 3; older builds require regeneration.
+
+Explicit npm `SEE LICENSE IN` files are included alongside existing license and notice discovery, without duplicating a file already selected. Build and deployment share the recorded package shape and package manifest reader. Ten public CLI regressions cover replacement, removal, standard and custom filenames, combined notices and unsupported or malformed metadata. All 537 CLI tests across 50 files pass with this change and fresh reference-store reuse. Build, source/test types, affected lint, Knip, whitespace checks and independent review pass.
+
+The source Flatpak review separately reproduced a preview probing an unused local Node executable. Source builds copy Node from their SDK extension, while mixed targets can also carry a local runtime; notices must describe each target's actual runtime. That correction and Debian license-expression grouping remain the next packaging changes. Hardcoded native crate license metadata remains under review.
+
+### Deployment guide
+
+The complete deployment guide was reviewed against the command, configuration and target implementations. The revision is about 65% shorter, replacing complete option catalogs and sample command transcripts with the GTKX workflow and links to exported API types. It preserves targets, architectures, icons, preview and rebuild behavior, runtime choices, native addon assets, installed notices and source Flatpak constraints.
+
+The guide distinguishes runtime FFI from GIR generation, describes target-specific AppStream warnings and separates a generated source manifest from a tested source build. Three snippets pass strict installed-consumer typechecking, six local routes and anchors resolve through VitePress, and upstream links were checked. Independent review and the production website checkpoint pass. The configuration reference currently hides schema-inferred deployment fields, so editor completion supplies the options until that separate reference gap is corrected.
+
+### Reference store reuse and coverage deadlines
+
+Reference generation now reuses an installed GI declaration store only when the existing freshness check matches its ordered GIR inputs and generator version. Missing or stale stores keep the existing in-memory generation path. Strict configured-prop validation remains eager, and no additional cache or retained compiler graph is introduced. Cold MCP reference loading fell from 7.52 to 3.89 seconds in the copied consumer measurement; cached queries remained 5–8 milliseconds.
+
+All 15 configured-props CLI cases pass within the 537-case CLI checkpoint. The added public case generates a store, changes GIR search precedence, restores the earlier inputs and verifies declaration errors without replacing existing pages. Independent MCP probes cover absent, fresh and stale stores, configuration changes, isolation and recovery. Source/test types, affected lint, Knip and independent review pass.
+
+The completed coverage job at `f6793578` has 4,821 passes and 17 failures, all in the MCP reference file. Instrumented cold requests take roughly 90 seconds, exposing SDK request and polling deadlines as well as test deadlines. The reference tests now use 120-second requests and polls, with 600 seconds for multi-reload cases; other consumers retain their existing request defaults. The focused V8 run now passes all 29 reference cases in 807 seconds; subprocess coverage records include 136 codegen and MCP source modules. This establishes instrumented execution, not a coverage percentage. Main CI tests pass at `91d37dab`; its coverage analysis is still running, so the Sonar quality gate remains unconfirmed.
+
+### Package script paths and platform notices
+
+All five nFPM modules were read, 302 baseline lines, with their target wrappers and command path handling. A real Debian deployment launched with `--cwd` failed to package an existing project-relative hook script because nFPM inherited the caller's working directory. The packaging subprocess now runs from the resolved project root, which also supplies the base for relative signing files.
+
+Real Debian and RPM packages retain the configured hook script for relative paths containing spaces and for absolute paths. Missing scripts remain rejected. The six public integration cases pass across focused runs; the Debian inspection uses existing `ar` and `tar` tools after the initial test exposed unavailable `dpkg-deb` on Fedora. Source/test types and affected lint pass. No tool was added to the environment.
+
+Platform notices now describe generated FFI bindings and dynamically supplied libraries. The incorrect runtime-introspection explanation and legal interpretation are removed; source links and license identifiers remain. Independent review and the combined build, lint, typecheck, test, release, tutorial and website checkpoint pass.
+
+### Target-specific Flatpak notices
+
+Source Flatpak previews no longer probe an unused local Node executable. Notice collection now follows the same runtime-selection decision as deployment and supplies separate sections for each target. Source manifests identify their configured SDK extension; local and binary targets retain the actual bundled Node version and license. Mixed deployments preserve both identities.
+
+All 12 new public CLI cases pass, including a missing local executable, custom SDK selection, binary Flatpaks and mixed targets. Existing notice provenance cases pass. The combined build, lint, typechecking and all 46 test/build tasks pass, followed by fresh published TypeScript and JavaScript consumers and the installed tutorial's application, localization and package checks. Independent review passes.
+
+A separate public source-revision case confirms that locally rendered dependency notices can still describe a different revision from the source being built. The next correction takes those sections from the selected revision's own build output. This batch closes runtime identity only.
+
+### Debian license expression grouping
+
+Debian copyright output previously removed SPDX parentheses, changing the meaning of combinations such as `(MIT OR Apache-2.0) AND BSD-3-Clause`. The maintained SPDX expression parser now supplies the syntax tree. Serialization preserves grouped choices using Debian's conjunction syntax, including nested alternatives, exceptions and later-version markers. Original expressions and available license texts remain in the notice body; custom package license labels retain their existing handling.
+
+All 25 public notice-provenance cases pass, including 15 expression cases covering grouping, deduplicated terms, explicit license files and missing terms. The complete canonical build, lint, typecheck and test checkpoint also passes, followed by release consumers and tutorial packaging. Frozen dependency installation and independent review pass. No private-helper or cosmetic error assertions were added.
+
+### Combined checkpoint and CI capacity
+
+The complete local checkpoint passes build, lint, typechecking, all 46 test/build tasks, fresh published TypeScript and JavaScript consumers, the installed tutorial and all 27 website tasks. The website renders successfully in 426 seconds. This checkpoint includes target-specific Node notices, Debian expression grouping and project-relative package hook scripts.
+
+At `91d37dab`, CI passes the main suite, publication, sanitizers, docs, lint, types and CodeQL. The CLI job reaches its 30-minute job limit after reporting 50 passing files, with localization still unfinished; its log contains no failed test assertion. The CLI job now allows 45 minutes. Individual test deadlines and production behavior are unchanged. Workflow YAML parses successfully. Sonar's separate coverage job remains in progress.
+
+Copilot reviewed 277 of 683 files at that commit and added no new comments. This partial review does not close the audit or the previously tracked GL callback finding; no reply was posted.
+
+### Real AppImage packaging coverage
+
+The 224-line private AppImage fixture and mocked packager are replaced by public CLI deployments and extraction of real AppImages. The tests compare packaged icon bytes for scalable preference, effective raster size and application-icon context; an unrelated icon remains rejected. Two existing GTKX PNG assets supply stable fixture data.
+
+The pinned appimagetool supports only zstd, although GTKX previously accepted gzip and xz. Configuration now preserves default or explicit zstd and rejects unsupported choices during loading. All six public cases pass, alongside the 50-case canonical notice/AppImage checkpoint, build, source/test types, affected lint and independent review. The known upstream compressor limitation is recorded separately in `~/UPSTREAM.md`.
+
 ## Next work
 
-Continue repeat audits alongside the R2 string/container and ownership stages. Follow with GL callback release, the broader constructor/factory-prop contract, declarative notifications and schema-driven settings types. Keep the TextView, Sidebar, ComboRow, Cairo image-data and React Spring compatibility code until official upstream releases contain the fixes. Continue source and documentation audits after each coherent change; zero findings has not been reached and the remaining inventory still needs review.
+The combined validation pass removed a private descriptor alias from the public documentation graph, an unused codegen export and redundant internal tags. Native lifecycle fixtures now narrow the nullable regex factory result through one constructor helper; all 20 lifecycle cases and the full e2e typecheck pass. Knip and affected-file lint pass. The website build exposed a link to a native API reference that is not published; removing it restored the build. The subsequent website and sanitizer checkpoints include the collection and codegen changes. At `2decda13`, fresh TypeScript and JavaScript consumers pass local-registry installation, build, launch and tests; TypeScript also passes typechecking. The installed tutorial passes build, launch, types, all 19 application tests, localized AppImage/deb/rpm checks and Flatpak manifest validation. These publication checks precede the store freshness and tutorial storage changes. PR checks and follow-up review are in progress.
+
+Continue repeat audits alongside the remaining R2 container and ownership stages; the string conversion stage is complete. Follow with GL callback release, the broader constructor/factory-prop contract, declarative notifications and schema-driven settings types. Keep the TextView, Sidebar, ComboRow, Cairo image-data and React Spring compatibility code until official upstream releases contain the fixes. Continue source and documentation audits after each coherent change; zero findings has not been reached and the remaining inventory still needs review.

@@ -27,6 +27,12 @@ type ScanCache = Map<string, ScanIndex>;
 type ScanResult = {
     index: ScanIndex;
     isChanged: boolean;
+    isComplete: boolean;
+};
+
+type ProjectImports = {
+    imports: SourceImport[];
+    isComplete: boolean;
 };
 
 const CACHE_FILE = ["node_modules", ".gtkx", "import-scan.json"];
@@ -142,45 +148,53 @@ const writeCache = (path: string, cache: ScanCache): void => {
     writeAtomically(path, JSON.stringify(cachePayload(cache)));
 };
 
-/* eslint-disable-next-line unicorn/consistent-boolean-name -- the boolean reports whether the file was rescanned */
-const scanFile = (path: string, previous: ScanIndex, index: ScanIndex): boolean => {
+const retainCached = (path: string, cached: ScannedFile | undefined, index: ScanIndex): "invalid" => {
+    if (cached !== undefined) {
+        index.set(path, cached);
+    }
+
+    return "invalid";
+};
+
+const scanFile = (path: string, previous: ScanIndex, index: ScanIndex): "changed" | "unchanged" | "invalid" => {
+    const cached = previous.get(path);
     const code = readSource(path);
 
     if (code === null) {
-        return previous.has(path);
+        return retainCached(path, cached, index);
     }
 
     const hash = hashSource(code);
-    const cached = previous.get(path);
 
     if (cached?.hash === hash) {
         index.set(path, cached);
 
-        return false;
+        return "unchanged";
     }
 
     const sources = importSourcesIn(path, code);
 
     if (sources === null) {
-        return previous.has(path);
+        return retainCached(path, cached, index);
     }
 
     index.set(path, { hash, sources });
 
-    return true;
+    return "changed";
 };
 
 const scanSourceDir = (dir: string, previous: ScanIndex): ScanResult => {
     const index: ScanIndex = new Map();
     let isChanged = false;
+    let isComplete = true;
 
     for (const path of discoverSourceFiles(dir)) {
-        if (scanFile(path, previous, index)) {
-            isChanged = true;
-        }
+        const result = scanFile(path, previous, index);
+        isChanged ||= result === "changed";
+        isComplete &&= result !== "invalid";
     }
 
-    return { index, isChanged: isChanged || index.size !== previous.size };
+    return { index, isChanged: isChanged || index.size !== previous.size, isComplete };
 };
 
 const toSourceImports = (index: ScanIndex): SourceImport[] =>
@@ -188,19 +202,19 @@ const toSourceImports = (index: ScanIndex): SourceImport[] =>
         [...index].flatMap(([importer, { sources }]) => sources.map((source) => ({ importer, source }))),
     );
 
-const discoverProjectImports = (root: string): SourceImport[] => {
+const discoverProjectImports = (root: string): ProjectImports => {
     const dir = sourceDirFor(root);
     const path = scanCachePath(root);
     const cache = readCache(path);
     const previous = cache.get(dir) ?? new Map<string, ScannedFile>();
-    const { index, isChanged } = scanSourceDir(dir, previous);
+    const { index, isChanged, isComplete } = scanSourceDir(dir, previous);
 
-    if (isChanged || !cache.has(dir)) {
+    if (isComplete && (isChanged || !cache.has(dir))) {
         cache.set(dir, index);
         writeCache(path, cache);
     }
 
-    return toSourceImports(index);
+    return { imports: toSourceImports(index), isComplete };
 };
 
 export { discoverProjectImports };

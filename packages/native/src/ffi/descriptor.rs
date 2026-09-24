@@ -4,9 +4,9 @@ use napi::bindgen_prelude::*;
 use napi_derive::napi;
 
 use crate::ffi::codec::{
-    ArrayBounds, ArrayCodec, ArrayKind, BigIntCodec, BoxedCodec, BufferCodec, CallbackCodec,
-    CallbackReleasePolicy, CallbackScope, Codec, DestroyNotifyKind, FloatCodec, FundamentalCodec,
-    HashTableCodec, IntegerCodec, ObjectCodec, Ownership, RefCodec, StringCodec, StructCodec,
+    ArrayBounds, ArrayCodec, ArrayKind, BigIntCodec, BoxedCodec, BufferCodec, BytesCodec,
+    CallbackCodec, CallbackReleasePolicy, CallbackScope, Codec, DestroyNotifyKind, FloatCodec,
+    FundamentalCodec, HashTableCodec, IntegerCodec, ObjectCodec, Ownership, RefCodec, StructCodec,
     VoidCodec,
 };
 
@@ -64,7 +64,7 @@ impl FromNapiValue for Descriptors {
     }
 }
 
-fn string_length(length: Option<i64>) -> Result<Option<usize>> {
+fn byte_capacity(length: Option<i64>) -> Result<Option<usize>> {
     let Some(length) = length else {
         return Ok(None);
     };
@@ -98,7 +98,7 @@ pub enum Descriptor {
     Biguint64,
     Float32,
     Float64,
-    String {
+    Bytes {
         ownership: Ownership,
         length: Option<i64>,
         /// Whether the instance holding the slot owns the string in it, so that a write releases
@@ -153,7 +153,6 @@ pub enum Descriptor {
         is_bytes: Option<bool>,
         is_caller_allocated: Option<bool>,
         is_zero_terminated: Option<bool>,
-        preserve_null: Option<bool>,
     },
     Hashtable {
         #[napi(ts_type = "Descriptor")]
@@ -204,13 +203,13 @@ impl Descriptor {
             Self::Float64 => Codec::Float(FloatCodec::F64),
             Self::Void => Codec::Void(VoidCodec),
             Self::Buffer => Codec::Buffer(BufferCodec),
-            Self::String {
+            Self::Bytes {
                 ownership,
                 length,
                 has_owned_storage,
-            } => Codec::String(StringCodec {
+            } => Codec::Bytes(BytesCodec {
                 ownership,
-                length: string_length(length)?,
+                length: byte_capacity(length)?,
                 has_owned_storage: has_owned_storage.unwrap_or(false),
             }),
             Self::Object {
@@ -299,7 +298,6 @@ impl Descriptor {
                 is_bytes,
                 is_caller_allocated,
                 is_zero_terminated,
-                preserve_null,
             } => {
                 let mut codec = ArrayCodec::new(
                     item_descriptor.into_codec()?,
@@ -312,7 +310,6 @@ impl Descriptor {
                     },
                     element_size.map(|n| n as usize),
                     is_bytes.unwrap_or(false),
-                    preserve_null.unwrap_or(false),
                 )
                 .map_err(|error| Error::from_reason(error.to_string()))?;
                 if is_zero_terminated.unwrap_or(false) {

@@ -43,6 +43,7 @@ import {
     requiresFactoryInitialization,
 } from "./constructor-props.js";
 import { getDoc } from "./doc-spec.js";
+import { appendElementMetadata } from "./element-metadata.js";
 import { declareFoldedClass, localClassName } from "./folded.js";
 import { gtypeMemberDeclaration, renderSourceGtype } from "./gtype-binding.js";
 import { memberName, methodExportName } from "./method.js";
@@ -207,11 +208,12 @@ const instanceMethodCollisions = (
     methods: GirFunction[],
 ): Set<string> => {
     const inheritedMethods = collectInheritedMethods(context, klass);
+    const scope = instanceScope(klass.name, klass);
 
     return new Set(
         methods
             .filter((callable) => isEmittableCallable(context, callable))
-            .map((callable) => shadowedInstanceMemberName(context, callable, inheritedMethods))
+            .map((callable) => shadowedInstanceMemberName(context, callable, scope, inheritedMethods))
             .filter((name): name is string => name !== undefined),
     );
 };
@@ -325,6 +327,10 @@ const appendClassRegistrations = (context: ModuleContext, klass: GirClass, targe
         gtypeExpr,
         vfuncs: renderVfuncMetadata(context, klass),
     });
+
+    if (gtypeExpr !== undefined) {
+        appendElementMetadata(context, klass);
+    }
 
     appendClassStructRegistration(context, klass, targetName, gtypeExpr);
 };

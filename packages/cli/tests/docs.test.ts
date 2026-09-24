@@ -1,12 +1,15 @@
+import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+    cliEnvironment,
     type CliProject,
     createCliProject,
     removeCliProject,
     runCli,
+    runCliOrThrow,
     STORE_LIBRARIES,
 } from "./cli-project.js";
 
@@ -46,6 +49,7 @@ const ASYNC_JOB_PAGE = "asyncpair/job.md";
 const REFERENCE_LIBRARIES = [...STORE_LIBRARIES, "GioUnix-2.0"];
 const REJECTED_OUT_DIRS = ["", ".", "..", "../sibling", "docs/../..", "/elsewhere/docs"];
 const FIXTURE_GIR = fileURLToPath(new URL("fixtures/gir", import.meta.url));
+const CLI_ENTRY = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 const PACKAGEKIT_SEARCH_TEXT = 'free text to search for, for instance, "power"';
 
 const config = (body = "", libraries = STORE_LIBRARIES): string =>
@@ -59,6 +63,38 @@ const runDocs = (project: CliProject, args: string[] = []): number | null =>
 
 const indexStamp = (project: CliProject): number => statSync(join(docsDir(project), INDEX_PAGE)).mtimeMs;
 const readPage = (project: CliProject, name: string): string => readFileSync(join(docsDir(project), name), "utf8");
+
+describe("project-relative GIR paths", () => {
+    it("uses the requested project's GIR for docs and codegen from another working directory", () => {
+        const source = readFileSync(join(FIXTURE_GIR, "Documented-1.0.gir"), "utf8");
+        const original = "Holds a short piece of text the user jotted down.";
+        const requested = "A note from the requested project.";
+        using project = createCliProject({
+            prefix: "gtkx-cli-gir-requested-",
+            config: config(', girPath: ["./gir"], agents: { reference: true }', ["Documented-1.0"]),
+            files: { "gir/Documented-1.0.gir": source.replace(original, () => requested) },
+        });
+        using launcher = createCliProject({
+            prefix: "gtkx-cli-gir-launcher-",
+            files: {
+                "gir/Documented-1.0.gir": source.replace(original, "A note from the launching project."),
+            },
+        });
+
+        for (const args of [["docs", "--out", OUT_DIR], ["codegen"]]) {
+            const result = spawnSync(process.execPath, [CLI_ENTRY, ...args, "--cwd", project.root], {
+                cwd: launcher.root,
+                env: cliEnvironment(project),
+                encoding: "utf8",
+                timeout: 300_000,
+            });
+            expect(result.status).toBe(0);
+        }
+
+        expect(readPage(project, DOCUMENTED_PAGE)).toContain(requested);
+        expect(readFileSync(join(project.root, ".gtkx/reference", DOCUMENTED_PAGE), "utf8")).toContain(requested);
+    });
+});
 
 describe("gtkx docs", () => {
     const state: { project: CliProject; status: number | null } = {
@@ -226,6 +262,21 @@ describe("gtkx docs", () => {
     });
 });
 
+describe("gtkx docs (a fresh project)", () => {
+    it("includes built-in props before bindings have been generated", () => {
+        using project = createCliProject({
+            prefix: "gtkx-cli-docs-first-run-",
+            config: `export default { applicationId: "${APPLICATION_ID}" };`,
+        });
+
+        runCliOrThrow(project, ["docs", "--out", OUT_DIR]);
+        expect(readPage(project, CALLBACK_ACTION_PAGE)).toContain("### `callback`");
+        expect(readPage(project, MENU_ITEM_PAGE)).toContain("### `submenu`");
+        expect(readPage(project, MENU_ITEM_PAGE)).toContain("### `section`");
+        expect(readPage(project, SHORTCUT_TRIGGER_PAGE)).toContain("### `accelerator`");
+    });
+});
+
 describe("gtkx docs (directories it refuses to write to)", () => {
     const state: { project: CliProject } = { project: { root: "", nodeModules: "", tmpDir: "" } };
 
@@ -247,7 +298,8 @@ describe("gtkx docs (ordinary prose that starts with free)", () => {
     it("preserves the PackageKit search parameter description and strips C memory management", () => {
         using project = createCliProject({
             prefix: "gtkx-cli-docs-free-text-",
-            config: config(`, girPath: [${JSON.stringify(FIXTURE_GIR)}]`, ["Documented-1.0"]),
+            config: config(', girPath: ["./gir"]', ["Documented-1.0"]),
+            files: { "gir/Documented-1.0.gir": readFileSync(join(FIXTURE_GIR, "Documented-1.0.gir")) },
         });
 
         expect(runDocs(project)).toBe(0);
@@ -317,7 +369,8 @@ describe("gtkx docs (async finish pairing)", () => {
     it("documents the paired generic finish and the remaining callback-only methods", () => {
         using project = createCliProject({
             prefix: "gtkx-cli-docs-async-pair-",
-            config: config(`, girPath: [${JSON.stringify(FIXTURE_GIR)}]`, ["AsyncPair-1.0"]),
+            config: config(', girPath: ["./gir"]', ["AsyncPair-1.0"]),
+            files: { "gir/AsyncPair-1.0.gir": readFileSync(join(FIXTURE_GIR, "AsyncPair-1.0.gir")) },
         });
 
         expect(runDocs(project)).toBe(0);
