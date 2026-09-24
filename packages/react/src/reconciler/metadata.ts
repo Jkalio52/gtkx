@@ -14,7 +14,7 @@ import {
     registeredElementSignals,
 } from "@gtkx/runtime/internal";
 import { properties, type PropertyEntry, signals, userEventSignals } from "virtual:gtkx-config";
-import { deferredProps, type ElementBehavior, ELEMENTS } from "./registry.js";
+import { type ElementBehavior, ELEMENTS } from "./registry.js";
 
 type TypeInfo = {
     typeName: string;
@@ -22,10 +22,9 @@ type TypeInfo = {
     signals: Record<string, string>;
     userEventSignals: Set<string>;
     behaviors: ElementBehavior[];
-    deferred: Set<string>;
+    createProps: Set<string>;
     declaredConstructOnly: Set<string>;
     isLazy: boolean;
-    hasFlush: boolean;
     constructOnly: Set<string>;
     construct: Set<string>;
     defaults: Record<string, unknown>;
@@ -91,9 +90,16 @@ const addAll = <T>(target: Set<T>, source: Iterable<T> | undefined): void => {
 };
 
 const accumulateAncestor = (info: TypeInfo, ancestor: string): void => {
+    const config = ELEMENTS[ancestor];
     Object.assign(info.signals, registeredElementSignals[ancestor] ?? signals[ancestor] ?? {});
     addAll(info.userEventSignals, userEventSignals[ancestor]);
-    info.behaviors.push(...(ELEMENTS[ancestor]?.behaviors ?? []));
+
+    if (config?.props?.composition === "factory" && ancestor !== info.typeName) {
+        return;
+    }
+
+    info.behaviors.push(...(config?.behaviors ?? []));
+    addAll(info.declaredConstructOnly, config?.props?.constructOnly);
 };
 
 const resolveProperty = (info: TypeInfo, name: string, entry: PropertyEntry): void => {
@@ -117,17 +123,26 @@ const resolveProperties = (info: TypeInfo): void => {
 };
 
 const applyBehaviorFlags = (info: TypeInfo, behavior: ElementBehavior): void => {
-    if (behavior.flush !== undefined) {
-        info.hasFlush = true;
-    }
-
-    addAll(info.deferred, deferredProps(behavior));
     addAll(info.declaredConstructOnly, behavior.constructOnly);
 };
 
 const resolveBehaviorFlags = (info: TypeInfo): void => {
     for (const behavior of info.behaviors) {
         applyBehaviorFlags(info, behavior);
+    }
+};
+
+const resolveCreateProps = (info: TypeInfo): void => {
+    const config = ELEMENTS[info.typeName];
+    const behaviors = config?.behaviors ?? [];
+
+    for (const behavior of behaviors) {
+        if (behavior.create === undefined) {
+            continue;
+        }
+
+        addAll(info.createProps, config?.props?.constructOnly);
+        addAll(info.createProps, behavior.constructOnly);
     }
 };
 
@@ -140,10 +155,9 @@ const buildTypeInfo = (name: string): TypeInfo => {
         signals: {},
         userEventSignals: new Set(),
         behaviors: [],
-        deferred: new Set(),
+        createProps: new Set(),
         declaredConstructOnly: new Set(),
         isLazy: false,
-        hasFlush: false,
         constructOnly: new Set(),
         construct: new Set(),
         defaults: {},
@@ -154,6 +168,7 @@ const buildTypeInfo = (name: string): TypeInfo => {
     }
 
     resolveBehaviorFlags(info);
+    resolveCreateProps(info);
     info.isLazy = chain.some((ancestor) => ELEMENTS[ancestor]?.isLazy === true);
 
     for (const ancestor of chain.toReversed()) {

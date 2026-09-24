@@ -37,6 +37,9 @@ const DBUS_CONNECTION_PAGE = "gio/d-bus-connection.md";
 const PIXBUF_PAGE = "gdkpixbuf/pixbuf.md";
 const SIDEBAR_PAGE = "adw/sidebar.md";
 const APPLICATION_PAGE = "adw/application.md";
+const MENU_ITEM_PAGE = "gio/menu-item.md";
+const CALLBACK_ACTION_PAGE = "gtk/callback-action.md";
+const SHORTCUT_TRIGGER_PAGE = "gtk/shortcut-trigger.md";
 const DOCUMENTED_PAGE = "documented/note.md";
 const ASYNC_SACK_PAGE = "asyncpair/sack.md";
 const ASYNC_JOB_PAGE = "asyncpair/job.md";
@@ -59,7 +62,7 @@ const readPage = (project: CliProject, name: string): string => readFileSync(joi
 
 describe("gtkx docs", () => {
     const state: { project: CliProject; status: number | null } = {
-        project: { root: "", nodeModules: "" },
+        project: { root: "", nodeModules: "", tmpDir: "" },
         status: null,
     };
 
@@ -201,10 +204,30 @@ describe("gtkx docs", () => {
         expect(runDocs(state.project, ["--force"])).toBe(0);
         expect(indexStamp(state.project)).not.toBe(before);
     });
+
+    it("documents selected menu item fields and its declarative menu slots", () => {
+        expect(state.status).toBe(0);
+        const page = readPage(state.project, MENU_ITEM_PAGE);
+
+        expect(page).toContain("### `label`");
+        expect(page).toContain("### `action`");
+        expect(page).toContain("Text shown for the entry");
+        expect(page).toContain("Detailed action name the entry activates");
+        expect(page).toContain("### `submenu`");
+        expect(page).toContain("### `section`");
+        expect(page).toContain("`ReactNode`");
+        expect(page).not.toContain("`MenuItem[]`");
+    });
+
+    it("documents factory-backed element props", () => {
+        expect(state.status).toBe(0);
+        expect(readPage(state.project, CALLBACK_ACTION_PAGE)).toContain("### `callback`");
+        expect(readPage(state.project, SHORTCUT_TRIGGER_PAGE)).toContain("### `accelerator`");
+    });
 });
 
 describe("gtkx docs (directories it refuses to write to)", () => {
-    const state: { project: CliProject } = { project: { root: "", nodeModules: "" } };
+    const state: { project: CliProject } = { project: { root: "", nodeModules: "", tmpDir: "" } };
 
     beforeAll(() => {
         state.project = createCliProject({ prefix: "gtkx-cli-docs-out-", config: config(), hasStore: true });
