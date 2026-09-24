@@ -117,7 +117,7 @@
                 ]
             },
             "coverage-shard": {
-                "command": "GTKX_COVERAGE_DIR=\"$PWD/coverage/subprocess\" vitest run --coverage --shard=\"$GTKX_COVERAGE_SHARD/$GTKX_COVERAGE_SHARDS\" --reporter=blob --outputFile=\"coverage-artifacts/vitest/blob-$GTKX_COVERAGE_SHARD.json\" --exclude '**/tests/testing/query-perf.test.tsx' && GTKX_SUBPROCESS_COVERAGE_REPORT_DIR=\"$PWD/coverage-artifacts/subprocess-report/$GTKX_COVERAGE_SHARD\" NODE_OPTIONS=--max-old-space-size=8192 tsx ./scripts/subprocess-coverage.ts && rm -rf coverage/subprocess",
+                "command": "GTKX_COVERAGE_DIR=\"$PWD/coverage/subprocess\" vitest run --coverage --shard=\"$GTKX_COVERAGE_SHARD/$GTKX_COVERAGE_SHARDS\" --reporter=dot --reporter=blob --outputFile.blob=\"coverage-artifacts/vitest/blob-$GTKX_COVERAGE_SHARD.json\" --exclude '**/tests/testing/query-perf.test.tsx' && GTKX_SUBPROCESS_COVERAGE_REPORT_DIR=\"$PWD/coverage-artifacts/subprocess-report/$GTKX_COVERAGE_SHARD\" NODE_OPTIONS=--max-old-space-size=8192 tsx ./scripts/subprocess-coverage.ts && rm -rf coverage/subprocess",
                 "cache": false,
                 "dependsOn": [
                     "coverage-dependencies"
@@ -202,6 +202,7 @@
         "@nx/vitest": "^23.2.1",
         "@types/node": "catalog:",
         "@types/react": "catalog:",
+        "@types/semver": "^7.8.0",
         "@vitest/coverage-v8": "catalog:",
         "c8": "^12.0.0",
         "eslint": "^10.11.0",
@@ -209,6 +210,7 @@
         "knip": "^6.37.0",
         "nx": "^23.2.1",
         "react": "catalog:",
+        "semver": "^7.8.5",
         "tsx": "^4.23.15",
         "typescript": "catalog:",
         "verdaccio": "^6.10.4",
