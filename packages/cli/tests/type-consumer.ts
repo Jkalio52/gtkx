@@ -1,6 +1,6 @@
 import { resolveExecutable } from "@gtkx/utils";
 import { execFileSync, spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { CliProject } from "./cli-project.js";
@@ -38,7 +38,7 @@ const runNativeConsumer = (
 const copyPackage = (project: CliProject, name: string): void => {
     const source = join(WORKSPACE, "packages", name);
     const target = join(project.nodeModules, "@gtkx", name);
-    rmSync(target);
+    rmSync(target, { force: true });
     mkdirSync(target);
     cpSync(join(source, "package.json"), join(target, "package.json"));
 
@@ -66,6 +66,11 @@ const copyTypeDependencies = (project: CliProject): void => {
     const taggedTag = realpathSync(join(dirname(typeFest), "tagged-tag"));
     cpSync(taggedTag, join(project.nodeModules, "tagged-tag"), { recursive: true });
 
+    for (const name of ["c12", "zod"]) {
+        const source = realpathSync(join(WORKSPACE, "packages/config/node_modules", name));
+        symlinkSync(source, join(project.nodeModules, name), "dir");
+    }
+
     for (const name of ["node", "react"]) {
         const source = realpathSync(join(WORKSPACE, "node_modules", "@types", name));
         cpSync(source, join(project.nodeModules, "@types", name), { recursive: true });
@@ -76,17 +81,30 @@ const copyTypeDependencies = (project: CliProject): void => {
     }
 };
 
-const isolateTypeConsumer = (project: CliProject): void => {
-    for (const name of PACKAGES) {
+const isolateTypeConsumer = (project: CliProject, additionalPackages: readonly string[] = []): void => {
+    for (const name of [...PACKAGES, ...additionalPackages]) {
         copyPackage(project, name);
     }
 
     copyTypeDependencies(project);
 };
 
-const typecheckFile = (project: CliProject, file: string, compilerOptions: readonly string[] = []): number => {
-    const result = spawnSync(process.execPath, [
-        TYPESCRIPT_CLI,
+const runTypeScript = (project: CliProject, args: readonly string[], timeout?: number): number => {
+    const result = spawnSync(process.execPath, [TYPESCRIPT_CLI, ...args], {
+        cwd: project.root,
+        encoding: "utf8",
+        ...(timeout !== undefined && { timeout }),
+    });
+
+    if (result.status === null) {
+        throw result.error ?? new Error("TypeScript did not exit normally");
+    }
+
+    return result.status;
+};
+
+const typecheckFile = (project: CliProject, file: string, compilerOptions: readonly string[] = []): number =>
+    runTypeScript(project, [
         "--noEmit",
         "--module", "ESNext",
         "--moduleResolution", "Bundler",
@@ -97,14 +115,10 @@ const typecheckFile = (project: CliProject, file: string, compilerOptions: reado
         "--types", "node",
         ...compilerOptions,
         file,
-    ], { cwd: project.root, encoding: "utf8" });
+    ]);
 
-    if (result.status === null) {
-        throw result.error ?? new Error("TypeScript did not exit normally");
-    }
-
-    return result.status;
-};
+const typecheckProject = (project: CliProject, configFile: string, timeout?: number): number =>
+    runTypeScript(project, ["--project", configFile], timeout);
 
 const typecheckSource = (project: CliProject, source: string): number => {
     writeFileSync(join(project.root, "consumer.tsx"), source);
@@ -117,5 +131,6 @@ export {
     isolateTypeConsumer,
     runNativeConsumer,
     typecheckFile,
+    typecheckProject,
     typecheckSource,
 };

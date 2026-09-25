@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createCliProject, runCli, STORE_LIBRARIES } from "./cli-project.js";
+import { createCliProject, runCli, runCliOrThrow, STORE_LIBRARIES } from "./cli-project.js";
 
 type RejectedConfig = { title: string; config: string };
 
@@ -40,6 +40,17 @@ const REJECTED_CONFIGS: RejectedConfig[] = [
     { title: "a wildcard library selection", config: `${HEAD}, libraries: "*" };\n` },
     { title: "a disabled graduated future", config: `${HEAD}, future: { v2ByteArrays: false } };\n` },
     { title: "an unknown future", config: `${HEAD}, future: { v2ByteArrrays: true } };\n` },
+    { title: "an unknown root option", config: `${HEAD}, libaries: ["Gio-2.0"] };\n` },
+    {
+        title: "an unknown React Compiler option",
+        config: `${HEAD}, reactCompiler: { panicTreshold: "all_errors" } };\n`,
+    },
+    {
+        title: "an unknown element option",
+        config: `${HEAD}, elements: { config: { GtkButton: { lazy: true } } } };\n`,
+    },
+    { title: "an unknown agent option", config: `${HEAD}, agents: { rule: false } };\n` },
+    { title: "an unknown MCP option", config: `${HEAD}, mcp: { readonly: true } };\n` },
     {
         title: "a retired deprecation id",
         config: `${HEAD}, deprecations: { silence: ["gtkx-v2-byte-arrays"] } };\n`,
@@ -69,7 +80,7 @@ const buildWith = (config: string): ReturnType<typeof createCliProject> => {
         hasStore: true,
     });
 
-    expect(runCli(project, ["build"]).status).toBe(0);
+    runCliOrThrow(project, ["build"]);
 
     return project;
 };
